@@ -1,5 +1,18 @@
 # What's new
 
+## 0.9.0 (22 Nov 2026)
+
+**Vim keys.** Use Clips without the mouse.
+
+![The list of keys](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.9.0/docs/media/keys.png)
+
+- In the side bar and the library: `j` `k` move, `gg` `G` go to the first and last clip, `Ctrl+d` `Ctrl+u` move 5.
+- On a clip: `Enter` puts it in, `y` copies, `m` opens the menu, `Space` shows all of it.
+- `n` shows more. `d` searches deeper with AI. `/` searches. `Esc` goes back to your note.
+- In search, `Enter` or `Esc` goes to the first clip.
+- `?` shows every key. Turn the letters off in **Settings → Keys**.
+- The cursor stays on your clip when the list changes, for example after you star it.
+
 ## 0.8.3 (22 Nov 2026)
 
 **Search deeper with AI, under any search.**

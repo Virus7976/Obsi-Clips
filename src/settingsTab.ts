@@ -4,6 +4,7 @@ import { FolderPicker } from "./ui";
 import { PROVIDERS } from "./settings";
 import { plural } from "./text";
 import { GET_MB, KEEP_MB } from "./meaning";
+import { KeysModal } from "./vim";
 
 type Obj = Record<string, unknown>;
 
@@ -220,6 +221,26 @@ export class ClipsSettingTab extends PluginSettingTab {
 									dropdown("Find clips again", "When I pause: a few seconds after you stop typing. As I type: often while you write. On another note: only when you open a different note.", "panelUpdate", { pause: "When I pause", live: "As I type", switch: "On another note" }),
 									toggle("Clips for drawings", "Show clips for Excalidraw drawings too.", "panelDrawings"),
 									toggle("Open when Obsidian starts", "Show the side bar on start.", "panelOnStart"),
+								],
+							},
+						],
+					},
+				],
+			},
+			{
+				type: "group",
+				items: [
+					{
+						type: "page",
+						name: "Keys",
+						desc: "Move and act on clips without the mouse.",
+						displayValue: () => (s.vimKeys ? "Vim keys" : "Arrow keys"),
+						items: [
+							{
+								type: "group",
+								items: [
+									toggle("Vim keys", "j and k move between clips. gg and G go to the first and last. y copies, m opens the menu, n shows more, d searches deeper with AI, Esc goes back to your note. Arrow keys always work.", "vimKeys"),
+									{ name: "Show all keys", desc: "The list of keys. Press ? on a clip to see it too.", action: () => new KeysModal(this.app).open() },
 								],
 							},
 						],

@@ -101,7 +101,37 @@ Every clip in one place.
 
 The library remembers your search, sort and filters.
 
-With the keyboard: `/` goes to search, arrow keys or `j` and `k` move between clips. On a clip: `Enter` puts it in, `Shift+Enter` embeds it, `c` copies, `o` opens where it came from, `s` stars, `u` shows where it is used.
+### Vim keys
+
+Use Clips without the mouse, in the side bar and the library. On by default. Turn them off in **Settings → Keys**. Arrow keys always work.
+
+| Key | What it does |
+| --- | --- |
+| `j` `k` | Next or last clip |
+| `gg` `G` | First or last clip |
+| `Ctrl+d` `Ctrl+u` | Down or up 5 clips |
+| `/` | Search |
+| `Enter` | In search: go to the first clip. On a clip: put it in your note |
+| `Shift+Enter` | Put it in as an embed |
+| `y` `c` | Copy as a quote |
+| `o` | Open where it came from |
+| `s` | Star or unstar |
+| `u` | Where it is used |
+| `Space` `za` | Show all of the clip |
+| `m` | The clip's menu |
+| `n` | Show more |
+| `d` | Search deeper with AI |
+| `Esc` | In search: go to the first clip. On a clip: back to your note |
+| `?` | The list of keys |
+
+![The list of keys](docs/media/keys.png)
+
+To open Clips from a note with Vim, add this to your `.obsidian.vimrc` (needs the Vimrc Support plugin). Then `Space` `c` opens the side bar search:
+
+```
+exmap clips obcommand clips:open-panel
+nmap <Space>c :clips<CR>
+```
 
 ![Filters](docs/media/filter.png)
 

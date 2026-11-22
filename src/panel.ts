@@ -6,6 +6,7 @@ import { GET_MB } from "./meaning";
 import { clipCard, clipsByMeaning, type CardOptions } from "./ui";
 import type { Clip } from "./model";
 import { fuzzyMatch, plural } from "./text";
+import { holdFocus, listKeys, searchKeys, viewScope } from "./vim";
 
 export const PANEL_VIEW = "clips-panel";
 
@@ -52,20 +53,14 @@ export class PanelView extends ItemView {
 		setIcon(search.createSpan({ cls: "oc-search-icon" }), "search");
 		this.searchEl = search.createEl("input", { attr: { type: "search", placeholder: "Search all clips", "aria-label": "Search all clips", enterkeyhint: "search" } });
 		this.searchEl.addEventListener("input", () => void this.draw());
-		this.searchEl.addEventListener("keydown", (e) => {
-			if (e.key !== "Escape") return;
-			e.preventDefault();
-			e.stopPropagation();
-			// Escape clears the search first, then goes back to the note.
-			if (this.searchEl.value) {
-				this.searchEl.value = "";
-				void this.draw();
-				return;
-			}
-			const leaf = this.app.workspace.getMostRecentLeaf();
-			if (leaf) this.app.workspace.setActiveLeaf(leaf, { focus: true });
-		});
 		this.bodyEl = root.createDiv({ cls: "oc-panel-body" });
+		const keys = { plugin: this.plugin, list: this.bodyEl, search: this.searchEl };
+		this.registerDomEvent(this.searchEl, "keydown", searchKeys(keys, () => {
+			this.searchEl.value = "";
+			void this.draw();
+		}));
+		this.registerDomEvent(this.bodyEl, "keydown", listKeys(keys));
+		viewScope(this, keys);
 
 		this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
 			if (leaf?.view instanceof MarkdownView) this.follow(leaf.view.file);
@@ -118,6 +113,12 @@ export class PanelView extends ItemView {
 
 	async draw() {
 		if (!this.bodyEl) return;
+		const back = holdFocus(this.bodyEl);
+		await this.drawNow();
+		back();
+	}
+
+	private async drawNow() {
 		const store = this.plugin.store;
 		const body = this.bodyEl;
 		const head = this.headEl;

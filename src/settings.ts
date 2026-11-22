@@ -85,6 +85,8 @@ export interface Settings {
 	hideIds: boolean;
 	/** Open "For this note" in the side bar when Obsidian starts. */
 	panelOnStart: boolean;
+	/** j, k, gg, G and other Vim letters move and act on clips in the side bar and the library. */
+	vimKeys: boolean;
 
 	query: Query;
 	showWhatsNew: boolean;
@@ -118,6 +120,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	libraryLook: "full",
 	hideIds: true,
 	panelOnStart: false,
+	vimKeys: true,
 	query: EMPTY_QUERY,
 	showWhatsNew: true,
 	ai: {

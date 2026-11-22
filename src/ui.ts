@@ -169,7 +169,7 @@ export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: C
 		clipMenu(plugin, c, e);
 	});
 	card.addEventListener("keydown", (e) => {
-		if (e.target !== card) return;
+		if (e.target !== card || e.ctrlKey || e.metaKey || e.altKey || menuOpenOrJustShut()) return;
 		if (e.key === "Enter") {
 			e.preventDefault();
 			void plugin.putClip(c, e.shiftKey ? "embed" : undefined);
@@ -194,7 +194,13 @@ export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: C
 }
 
 /** Everything you can do with a clip, as one menu. */
-export function clipMenu(plugin: ClipsPlugin, c: Clip, at: MouseEvent | { x: number; y: number }): void {
+let menuShut = -1e9;
+/** True while a key that closed a clip menu is still on its way: that key is for the menu, not the clip. */
+export function menuOpenOrJustShut(): boolean {
+	return !!activeDocument.querySelector(".menu") || performance.now() - menuShut < 100;
+}
+
+export function clipMenu(plugin: ClipsPlugin, c: Clip, at: MouseEvent | { x: number; y: number }, onHide?: () => void): Menu {
 	const st = plugin.store.state(c.id);
 	const p = c.places[0];
 	const m = new Menu();
@@ -221,8 +227,13 @@ export function clipMenu(plugin: ClipsPlugin, c: Clip, at: MouseEvent | { x: num
 	m.addItem((i) => i.setSection("keep").setTitle("Edit tags…").setIcon("tags").onClick(() => new TagsModal(plugin, [c]).open()));
 	m.addItem((i) => i.setSection("keep").setTitle("Clips like this").setIcon("sparkle").onClick(() => plugin.openLibrary({ text: likeQuery(c) })));
 	m.addItem((i) => i.setSection("danger").setTitle(st.arch ? "Bring back" : "Archive").setIcon(st.arch ? "archive-restore" : "archive").onClick(() => plugin.toggleArchive(c)));
+	m.onHide(() => {
+		menuShut = performance.now();
+		onHide?.();
+	});
 	if (at instanceof MouseEvent) m.showAtMouseEvent(at);
 	else m.showAtPosition(at);
+	return m;
 }
 
 /** A search for clips like this one: its rarest words. */

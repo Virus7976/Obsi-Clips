@@ -122,6 +122,14 @@ export class Target {
 		return null;
 	}
 
+	/** Puts the cursor back in the note you were writing. */
+	backToNote() {
+		const view = this.view();
+		if (!view) return;
+		this.app.workspace.setActiveLeaf(view.leaf, { focus: true });
+		if (view.getMode() === "source") view.editor.focus();
+	}
+
 	file(): TFile | null {
 		return this.view()?.file ?? null;
 	}

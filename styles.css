@@ -858,3 +858,9 @@ a.oc-ai-keylink.is-hidden { display: none; }
 /* Text only: the words, nothing else. */
 .oc-card.is-text-only .oc-meta { display: none; }
 .oc-card.is-text-only .oc-text { -webkit-line-clamp: 3; }
+
+/* Keys */
+.oc-keys { width: 100%; border-collapse: collapse; margin-bottom: var(--size-4-3); }
+.oc-keys td { padding: var(--size-2-2) var(--size-4-2); border-bottom: 1px solid var(--background-modifier-border); vertical-align: middle; }
+.oc-keys td:first-child { white-space: nowrap; width: 1%; }
+.oc-keys kbd { margin-right: var(--size-2-2); }

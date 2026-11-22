@@ -5,6 +5,7 @@ import { COLORS, GROUPS, KINDS, SORTS, filterCount, groupHits, runQuery, splitSe
 import { clipCard, iconButton, kindName, ListPicker, TagsModal } from "./ui";
 import { fuzzyMatch, plural } from "./text";
 import { GET_MB } from "./meaning";
+import { holdFocus, listKeys, searchKeys, viewScope } from "./vim";
 
 export const LIBRARY_VIEW = "clips-library";
 const PAGE = 60;
@@ -89,16 +90,6 @@ export class LibraryView extends ItemView {
 			this.onSearch();
 		});
 		clear.toggleClass("is-hidden", !this.q.text);
-		this.searchEl.addEventListener("keydown", (e) => {
-			if (e.key === "ArrowDown") {
-				e.preventDefault();
-				this.listEl.querySelector<HTMLElement>(".oc-card")?.focus();
-			} else if (e.key === "Escape" && this.searchEl.value) {
-				e.preventDefault();
-				this.searchEl.value = "";
-				this.onSearch();
-			}
-		});
 
 		const bar = head.createDiv({ cls: "oc-toolbar" });
 		this.sortBtn = bar.createEl("button", { cls: "oc-tool", attr: { type: "button", "aria-label": "Sort" } });
@@ -120,7 +111,14 @@ export class LibraryView extends ItemView {
 		this.selectBar = head.createDiv({ cls: "oc-select-bar is-hidden" });
 		this.countEl = root.createDiv({ cls: "oc-count" });
 		this.listEl = root.createDiv({ cls: "oc-list", attr: { role: "feed", "aria-label": "Clips" } });
-		this.listEl.addEventListener("keydown", (e) => this.listKeys(e));
+		const keys = { plugin: this.plugin, list: this.listEl, search: this.searchEl, all: () => this.more?.(Infinity) };
+		this.registerDomEvent(this.searchEl, "keydown", searchKeys(keys, () => {
+			this.searchEl.value = "";
+			clear.addClass("is-hidden");
+			this.onSearch();
+		}));
+		this.registerDomEvent(this.listEl, "keydown", listKeys(keys));
+		viewScope(this, keys);
 
 		this.registerEvent(this.plugin.store.on("change", () => this.refreshSoon()));
 		this.registerEvent(this.plugin.store.on("state", () => this.refreshSoon()));
@@ -321,7 +319,16 @@ export class LibraryView extends ItemView {
 		this.draw();
 	}
 
+	/** Draws more of the list: a page, or every card left. */
+	private more: ((n?: number) => void) | null = null;
+
 	private draw() {
+		const back = holdFocus(this.listEl);
+		this.drawNow();
+		back();
+	}
+
+	private drawNow() {
 		const list = this.listEl;
 		this.observer?.disconnect();
 		list.empty();
@@ -428,8 +435,8 @@ export class LibraryView extends ItemView {
 				queue.push(() => list.createEl("button", { cls: "oc-link-btn oc-deeper", text: "Search deeper with AI", attr: { type: "button" } }).addEventListener("click", () => void this.findByMeaning(words)));
 			else if (!this.deep.length) queue.push(() => list.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "AI found nothing more." }));
 		}
-		const more = () => {
-			const until = Math.min(queue.length, this.shown + PAGE);
+		const more = (n = PAGE) => {
+			const until = Math.min(queue.length, this.shown + n);
 			for (; this.shown < until; this.shown++) queue[this.shown]();
 			sentinel.remove();
 			if (this.shown < queue.length) list.appendChild(sentinel);
@@ -439,6 +446,7 @@ export class LibraryView extends ItemView {
 			if (entries.some((e) => e.isIntersecting)) more();
 		}, { root: list, rootMargin: "600px" });
 		this.observer.observe(sentinel);
+		this.more = more;
 		more();
 	}
 
@@ -466,20 +474,6 @@ export class LibraryView extends ItemView {
 		box.createDiv({ cls: "oc-empty-title", text: title });
 		box.createDiv({ cls: "oc-empty-text", text });
 		if (button) box.createEl("button", { cls: "mod-cta", text: button }).addEventListener("click", onClick);
-	}
-
-	private listKeys(e: KeyboardEvent) {
-		const cards = [...this.listEl.querySelectorAll<HTMLElement>(".oc-card")];
-		const i = cards.indexOf(activeDocument.activeElement as HTMLElement);
-		if (i < 0) return;
-		if (e.key === "ArrowDown" || e.key === "j") {
-			e.preventDefault();
-			cards[Math.min(i + 1, cards.length - 1)].focus();
-		} else if (e.key === "ArrowUp" || e.key === "k") {
-			e.preventDefault();
-			if (i === 0) this.searchEl.focus();
-			else cards[i - 1].focus();
-		}
 	}
 
 	private async findByMeaning(words: string) {
