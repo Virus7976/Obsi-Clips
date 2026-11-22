@@ -40,7 +40,7 @@ Everything else is in the library's **⋯** menu, the right-click menu in a note
 
 ### Clips for this note
 
-The side bar reads the note you are writing and shows the clips that fit it. Each clip says why it fits, like *Matches time, habit*. Clips you already used in this note are in their own list at the top.
+The side bar reads the note you are writing and shows the 5 clips that fit it best. Press **Show 5 more** for more. Each clip is two lines and its source. It does not change while you type: it updates when you stop for a few seconds. Clips you already used in this note are in their own list at the top. Drawings get no clips.
 
 - Tap the arrow to put a clip in at the cursor.
 - On desktop, drag a clip into the note.

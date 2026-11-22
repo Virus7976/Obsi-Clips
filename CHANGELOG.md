@@ -1,5 +1,16 @@
 # What's new
 
+## 0.5.0 (22 Nov 2026)
+
+**A calm side bar.**
+
+![The calm side bar](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.5.0/docs/media/quiet-sidebar.png)
+
+- **Only the 5 best clips** for your note. **Show 5 more** gives more.
+- **Each clip is two lines** and one small source line. Its buttons show when you point at it, or tap it on a phone.
+- **It does not change while you type.** It updates when you stop for a few seconds, or open another note.
+- **No clips for drawings.** Search still works there.
+
 ## 0.4.0 (22 Nov 2026)
 
 **Find by meaning when nothing matches.**

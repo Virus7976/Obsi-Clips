@@ -840,3 +840,16 @@ a.oc-ai-keylink.is-hidden { display: none; }
 .oc-setup-whole button { flex: none; }
 .is-mobile .oc-setup-whole { flex-wrap: wrap; }
 .is-mobile .oc-setup-whole button { width: 100%; min-height: 44px; }
+
+/* The calm side bar card: no box, two lines, one small source line; actions show on hover or tap. */
+.oc-card.is-quiet { border-color: transparent; background: transparent; padding-top: var(--size-4-1); padding-bottom: var(--size-4-1); }
+.oc-card.is-quiet:hover, .oc-card.is-quiet:focus-within, .oc-card.is-quiet.is-open { background: var(--background-modifier-hover); border-color: transparent; }
+.oc-card.is-quiet .oc-text { -webkit-line-clamp: 2; }
+.oc-card.is-quiet .oc-meta { font-size: var(--font-ui-smaller); color: var(--text-faint); }
+.oc-card.is-quiet .oc-src-icon { display: none; }
+.oc-panel .oc-card.is-quiet + .oc-card.is-quiet { margin-top: 2px; }
+.oc-panel button.oc-more { align-self: flex-start; margin: var(--size-4-2) var(--size-4-2); }
+.is-mobile .oc-card.is-quiet:not(.is-open) .oc-actions { display: none; }
+.oc-card.is-quiet .oc-meta { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+.oc-card.is-quiet .oc-src { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+.oc-card.is-quiet .oc-where { flex: none; }

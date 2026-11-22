@@ -63,6 +63,8 @@ export interface CardOptions {
 	ranges?: Range[];
 	/** Short card for the side bar. */
 	compact?: boolean;
+	/** The calm side bar card: two lines of text and one small source line, actions on hover. */
+	quiet?: boolean;
 	/** Words that made it match, shown small. */
 	why?: string[];
 	/** Shown instead of the source line, for clips listed inside their own note. */
@@ -94,7 +96,7 @@ export async function clipsByMeaning(plugin: ClipsPlugin, query: string, pool: C
 export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: CardOptions = {}): HTMLElement {
 	const st = plugin.store.state(c.id);
 	const p = c.places[0];
-	const card = parent.createDiv({ cls: "oc-card" + (o.compact ? " is-compact" : "") + (st.arch ? " is-archived" : "") });
+	const card = parent.createDiv({ cls: "oc-card" + (o.compact || o.quiet ? " is-compact" : "") + (o.quiet ? " is-quiet" : "") + (st.arch ? " is-archived" : "") });
 	card.dataset.id = c.id;
 	card.tabIndex = 0;
 	card.setAttr("role", "article");
@@ -118,16 +120,21 @@ export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: C
 		src.createSpan({ text: c.source });
 	}
 	if (p.where) meta.createSpan({ cls: "oc-where", text: p.where });
-	const used = meta.createEl("button", { cls: "oc-used" + (c.uses.length ? " is-used" : ""), text: usedLabel(c), attr: { type: "button" } });
-	used.addEventListener("click", (e) => {
+	if (o.quiet) {
+		if (st.star) setIcon(meta.createSpan({ cls: "oc-star-mark", attr: { "aria-label": "Starred" } }), "star");
+	}
+	const used = o.quiet ? null : meta.createEl("button", { cls: "oc-used" + (c.uses.length ? " is-used" : ""), text: usedLabel(c), attr: { type: "button" } });
+	used?.addEventListener("click", (e) => {
 		e.stopPropagation();
 		if (c.uses.length) new UsesModal(plugin, c).open();
 	});
-	if (!o.compact) meta.createSpan({ cls: "oc-date", text: when(c.clipped), attr: { title: "Clipped " + new Date(c.clipped).toLocaleDateString() } });
-	if (c.places.length > 1) meta.createSpan({ cls: "oc-dupes", text: `In ${c.places.length} notes` });
-	if (st.star) setIcon(meta.createSpan({ cls: "oc-star-mark", attr: { "aria-label": "Starred" } }), "star");
+	if (!o.compact && !o.quiet) meta.createSpan({ cls: "oc-date", text: when(c.clipped), attr: { title: "Clipped " + new Date(c.clipped).toLocaleDateString() } });
+	if (c.places.length > 1 && !o.quiet) meta.createSpan({ cls: "oc-dupes", text: `In ${c.places.length} notes` });
+	if (st.star && !o.quiet) setIcon(meta.createSpan({ cls: "oc-star-mark", attr: { "aria-label": "Starred" } }), "star");
 
-	if (o.why?.length) main.createDiv({ cls: "oc-why", text: "Matches " + o.why.join(", ") });
+	if (o.quiet) {
+		// Nothing more: the calm card keeps to its text and source.
+	} else if (o.why?.length) main.createDiv({ cls: "oc-why", text: "Matches " + o.why.join(", ") });
 	else if (c.tags.length && !o.compact) {
 		const tags = main.createDiv({ cls: "oc-tags" });
 		for (const t of c.tags.slice(0, 8)) {

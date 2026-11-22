@@ -180,7 +180,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 							{
 								type: "group",
 								items: [
-									slider("Clips shown", "How many matching clips the side bar lists.", "panelCount", 5, 60, 5),
+									slider("Most clips shown", "The side bar shows 5 at first, and up to this many with Show more.", "panelCount", 5, 60, 5),
 									toggle("Open when Obsidian starts", "Show the side bar on start.", "panelOnStart"),
 								],
 							},

@@ -7,6 +7,7 @@ import type { Clip } from "./model";
 import { fuzzyMatch, plural } from "./text";
 
 export const PANEL_VIEW = "clips-panel";
+const STEP = 5;
 
 export class PanelView extends ItemView {
 	private file: TFile | null = null;
@@ -19,6 +20,8 @@ export class PanelView extends ItemView {
 	private picks: string[] | null = null;
 	private picksFor = "";
 	private showUsed = false;
+	/** How many clips for this note are shown. Starts small so the side bar stays calm. */
+	private shown = STEP;
 	/** Find by meaning for one search: null while AI looks. */
 	private meaning: { query: string; clips: Clip[] | null } | null = null;
 
@@ -71,7 +74,7 @@ export class PanelView extends ItemView {
 			if (f && f.extension === "md") this.follow(f);
 		}));
 		this.registerEvent(this.app.workspace.on("editor-change", (_e, info) => {
-			if (info.file && info.file === this.file) this.soon(1500);
+			if (info.file && info.file === this.file) this.soon(8000);
 		}));
 		this.registerEvent(this.plugin.store.on("change", () => this.soon(200)));
 		this.registerEvent(this.plugin.store.on("state", () => this.soon(200)));
@@ -83,6 +86,7 @@ export class PanelView extends ItemView {
 		this.file = f;
 		this.picks = null;
 		this.showUsed = false;
+		this.shown = STEP;
 		this.soon(50);
 	}
 
@@ -139,7 +143,7 @@ export class PanelView extends ItemView {
 				.sort((a, b) => (b.m?.score ?? 0) - (a.m?.score ?? 0) || b.c.clipped - a.c.clipped)
 				.slice(0, 60);
 			head.createDiv({ cls: "oc-panel-sub", text: plural(hits.length, "clip") });
-			for (const h of hits) clipCard(body, this.plugin, h.c, { compact: true, ranges: h.m?.ranges.filter((r) => r[1] <= h.c.text.length) });
+			for (const h of hits) clipCard(body, this.plugin, h.c, { quiet: true, ranges: h.m?.ranges.filter((r) => r[1] <= h.c.text.length) });
 			const m = this.meaning?.query === query ? this.meaning : null;
 			if (m) {
 				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad", text: "Looking by meaning…" });
@@ -147,7 +151,7 @@ export class PanelView extends ItemView {
 					body.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "Nothing close in meaning either. Try other words." });
 				else {
 					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
-					for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, { compact: true });
+					for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, { quiet: true });
 				}
 			} else if (!hits.length) {
 				const ai = this.plugin.ai.usable();
@@ -179,6 +183,13 @@ export class PanelView extends ItemView {
 			return;
 		}
 
+		// A drawing is not writing: no clips for it, but search still works.
+		const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
+		if (f.path.endsWith(".excalidraw.md") || fm?.["excalidraw-plugin"] !== undefined) {
+			this.empty("A drawing", "Clips show for notes you write. Search above to find one.", "", () => undefined);
+			return;
+		}
+
 		// Any other note: the clips that fit it.
 		const text = await this.noteText();
 		if (this.file !== f) return;
@@ -193,7 +204,8 @@ export class PanelView extends ItemView {
 			const pickSet = new Set(this.picks);
 			order = [...this.picks.map((id) => ranked.find((r) => r.id === id)).filter((r): r is (typeof ranked)[number] => !!r), ...ranked.filter((r) => !pickSet.has(r.id))];
 		}
-		order = order.slice(0, this.plugin.settings.panelCount);
+		const max = Math.min(order.length, this.plugin.settings.panelCount);
+		order = order.slice(0, Math.min(this.shown, max));
 
 		head.createDiv({ cls: "oc-panel-title", text: "For this note" });
 		head.createDiv({ cls: "oc-panel-sub", text: f.basename });
@@ -207,7 +219,7 @@ export class PanelView extends ItemView {
 				this.showUsed = !this.showUsed;
 				void this.draw();
 			});
-			if (this.showUsed) for (const c of usedHere) clipCard(sec, this.plugin, c, { compact: true });
+			if (this.showUsed) for (const c of usedHere) clipCard(sec, this.plugin, c, { quiet: true });
 		}
 
 		if (!order.length) {
@@ -215,7 +227,14 @@ export class PanelView extends ItemView {
 		}
 		for (const r of order) {
 			const c = store.byId.get(r.id);
-			if (c) clipCard(body, this.plugin, c, { compact: true, why: r.why });
+			if (c) clipCard(body, this.plugin, c, { quiet: true });
+		}
+		if (order.length < max) {
+			const more = body.createEl("button", { cls: "oc-link-btn oc-more", text: `Show ${Math.min(STEP, max - order.length)} more`, attr: { type: "button" } });
+			more.addEventListener("click", () => {
+				this.shown += STEP;
+				void this.draw();
+			});
 		}
 
 		// Quietly reorder by meaning when AI is set up: once per note, after the text settles.
