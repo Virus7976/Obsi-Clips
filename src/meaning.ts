@@ -194,14 +194,14 @@ export class MeaningIndex extends Events {
 	 * The clips closest in meaning, best first. Only clips past the closeness set in Settings.
 	 * The first call loads the model and returns nothing; the side bar and library draw again when it is ready.
 	 */
-	near(what: string, pool: Clip[], skip: Set<string> = new Set(), limit = 40, maxPieces?: number): Near[] {
+	/** min: the lowest closeness kept; by default the "How close" setting. */
+	near(what: string, pool: Clip[], skip: Set<string> = new Set(), limit = 40, maxPieces?: number, min = NEAR[this.s().near]): Near[] {
 		if (!this.model) {
 			void this.wake();
 			return [];
 		}
 		const q = this.embed(what, maxPieces);
 		if (!q) return [];
-		const min = NEAR[this.s().near];
 		const out: Near[] = [];
 		for (const c of pool) {
 			if (skip.has(c.id)) continue;

@@ -78,26 +78,53 @@ export interface CardOptions {
 }
 
 /** One clip as a card: colour bar, text, note, details, tags and actions. */
-/** Clips close in meaning to a search: other words from AI, matched against the clips. Best first. With meaning search on this device, those words also find clips close in meaning. */
-export async function clipsByMeaning(plugin: ClipsPlugin, query: string, pool: Clip[], skip: Set<string>, asked = false): Promise<Clip[]> {
-	const words = await plugin.ai.meaningWords(query, asked);
-	if (!words.length) return [];
-	const out: { c: Clip; score: number }[] = [];
-	for (const c of pool) {
-		if (skip.has(c.id)) continue;
-		let best = 0;
-		for (const w of words) {
-			const m = fuzzyMatch(w, c.text + " " + c.tags.join(" "));
-			if (m && m.score >= 8) best += m.score;
+
+/**
+ * Search deeper with AI. Clips first gathers likely clips on this device: close in meaning to the search and to
+ * AI's other words, and clips with those words. Then AI reads them and keeps only the ones that fit.
+ * Returns null when AI did not answer.
+ */
+export async function aiFind(plugin: ClipsPlugin, query: string, pool: Clip[], skip: Set<string>): Promise<Clip[] | null> {
+	const words = await plugin.ai.meaningWords(query, true);
+	const lists: Clip[][] = [];
+	const meaning = plugin.meaning;
+	if (!meaning.ready && meaning.usable("search")) await meaning.wake();
+	if (meaning.ready) {
+		lists.push(meaning.near(query, pool, skip, 24, 2048, 0.25).map((n) => n.clip));
+		if (words.length) lists.push(meaning.near(words.join(" "), pool, skip, 24, 2048, 0.25).map((n) => n.clip));
+	}
+	if (words.length) {
+		const scored: { c: Clip; score: number }[] = [];
+		for (const c of pool) {
+			if (skip.has(c.id)) continue;
+			let best = 0;
+			for (const w of words) {
+				const m = fuzzyMatch(w, c.text + " " + c.tags.join(" ") + " " + c.source);
+				if (m && m.score >= 8) best += m.score;
+			}
+			if (best) scored.push({ c, score: best });
 		}
-		if (best) out.push({ c, score: best });
+		lists.push(scored.sort((a, b) => b.score - a.score).slice(0, 24).map((x) => x.c));
 	}
-	const found = out.sort((a, b) => b.score - a.score).map((x) => x.c);
-	if (plugin.meaning.ready) {
-		const have = new Set([...skip, ...found.map((c) => c.id)]);
-		for (const n of plugin.meaning.near(words.join(" "), pool, have, 40)) found.push(n.clip);
+	// Take from each list in turn, so each way of finding gets a fair share. The same words once only.
+	const seen = new Set<string>();
+	const texts = new Set<string>();
+	const cands: Clip[] = [];
+	for (let i = 0; cands.length < 36 && lists.some((l) => i < l.length); i++) {
+		for (const l of lists) {
+			const c = l[i];
+			if (!c || seen.has(c.id)) continue;
+			seen.add(c.id);
+			const t = c.text.replace(/\s+/g, " ").trim().toLowerCase();
+			if (texts.has(t)) continue;
+			texts.add(t);
+			cands.push(c);
+		}
 	}
-	return found;
+	const ids = await plugin.ai.findClips(query, cands.map((c) => ({ id: c.id, text: c.text, source: c.source })));
+	if (!ids) return null;
+	const byId = new Map(cands.map((c) => [c.id, c]));
+	return ids.map((id) => byId.get(id)).filter((c): c is Clip => !!c);
 }
 
 export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: CardOptions = {}): HTMLElement {

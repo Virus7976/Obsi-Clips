@@ -6,6 +6,9 @@ import { addressProblem } from "./safety";
 import { PHONE_SECRET, PROVIDERS, type AiSettings, type PluginData } from "./settings";
 
 const MAX_MEMO = 400;
+/** Search deeper: how many likely clips AI reads, and how much of each. */
+const FIND_MAX = 36;
+const FIND_CUT = 140;
 
 /** What one call needs: where it goes and which model. */
 export type AiTarget = Pick<AiSettings, "provider" | "app" | "baseUrl" | "model">;
@@ -85,6 +88,7 @@ export class Ai {
 	}
 
 	private async call(s: AiTarget, key: string, system: string, user: string, maxTokens: number): Promise<string> {
+		this.lastError = "";
 		// Checked again at each call: a key never goes to an address that could be read on the way.
 		const problem = addressProblem(s.baseUrl, key !== "");
 		if (problem) {
@@ -217,12 +221,14 @@ export class Ai {
 		// "asked": the person pressed Find by meaning, so it runs even with Find by meaning turned off.
 		if (!q || !this.usable() || (!this.s.meaning && !asked)) return [];
 		const memo = this.data().memo.words;
-		const key = hashId(q);
+		// "2|": the ask changed in 0.9.1 (names of people and books), so old answers are asked again.
+		const key = hashId("2|" + q);
 		if (memo[key]) return memo[key];
 		return this.once("w" + key, async () => {
 			const out = await this.askJson<{ words?: unknown }>(
 				"You help a person search their own saved quotes. Give other words for what this search means: close words, " +
-					"related ideas, and the plain words a quote about it would use. Single words only, lowercase. " +
+					"related ideas, and the plain words a quote about it would use. When the search hints at who said it, add the likely " +
+					"names of people or books, like plato or nietzsche. The person may remember it wrong. Single words only, lowercase. " +
 					'Answer with JSON only: {"words": ["..."]} with 6 to 10 words.',
 				q,
 				80,
@@ -230,6 +236,36 @@ export class Ai {
 			const words = Array.isArray(out?.words) ? out.words.filter((w): w is string => typeof w === "string").map((w) => w.toLowerCase().trim()).filter((w) => w && !w.includes(" ")).slice(0, 10) : [];
 			if (words.length) this.remember(memo, key, words);
 			return words;
+		});
+	}
+
+	/**
+	 * Search deeper: AI reads a short list of likely clips and keeps only the ones that truly fit the search.
+	 * Each clip is cut short, so a search costs about 1,500 tokens. Remembered, so the same search costs nothing again.
+	 * Returns null when AI did not answer.
+	 */
+	async findClips(query: string, clips: { id: string; text: string; source: string }[]): Promise<string[] | null> {
+		const q = query.replace(/\s+/g, " ").trim().slice(0, 200);
+		if (!q || !this.usable() || !clips.length) return clips.length ? null : [];
+		const list = clips.slice(0, FIND_MAX);
+		const key = hashId("f|" + q.toLowerCase() + "|" + list.map((c) => c.id).join(","));
+		const memo = this.data().memo.picks;
+		if (memo[key]) return memo[key];
+		return this.once("f" + key, async () => {
+			const user = "I am looking for: " + q + "\n\nMy saved quotes:\n" + list.map((c, i) => `${i + 1}. ${cut(c.text.replace(/\s+/g, " "), FIND_CUT)} (${cut(c.source, 40)})`).join("\n");
+			const out = await this.askJson<{ ids?: unknown }>(
+				"A person searches their own saved quotes. Pick the numbered quotes that are about what they are looking for, " +
+					"even in other words. They may remember it wrong or only in part: match the idea, the context and who said it " +
+					"(the source is in brackets). Leave out quotes that only share a word with the search, or are about something else. " +
+					"Best first. If none fit, give an empty list. " +
+					'Answer with JSON only: {"ids": [numbers]}.',
+				user,
+				80,
+			);
+			if (!Array.isArray(out?.ids)) return null;
+			const ids = [...new Set(out.ids.map((n) => (typeof n === "number" ? n : parseInt(String(n), 10))).filter((n) => n >= 1 && n <= list.length).map((n) => list[n - 1].id))];
+			this.remember(memo, key, ids);
+			return ids;
 		});
 	}
 

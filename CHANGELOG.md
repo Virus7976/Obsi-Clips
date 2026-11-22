@@ -1,5 +1,17 @@
 # What's new
 
+## 0.9.1 (22 Nov 2026)
+
+**Search deeper with AI finds the right clips.**
+
+![Search deeper with AI under the results](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.9.1/docs/media/search-deeper-more.png)
+
+- AI now reads your likely clips and keeps only the ones that fit. Before, AI only gave other words, so clips that shared a word showed up too.
+- Search the way you remember it, even if you remember it wrong: "a philosopher said to marry around 30" finds Aristotle's quote about marrying at thirty-seven.
+- AI sees where each clip is from, so "a philosopher" or a book name helps.
+- About 1,500 tokens for each search. The same search again costs nothing.
+- The count under Search now counts every clip shown.
+
 ## 0.9.0 (22 Nov 2026)
 
 **Vim keys.** Use Clips without the mouse.

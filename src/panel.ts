@@ -3,7 +3,7 @@ import { ItemView, MarkdownView, Platform, setIcon, TFile, type WorkspaceLeaf } 
 import type ClipsPlugin from "./main";
 import { blend, Relater } from "./relate";
 import { GET_MB } from "./meaning";
-import { clipCard, clipsByMeaning, type CardOptions } from "./ui";
+import { aiFind, clipCard, type CardOptions } from "./ui";
 import type { Clip } from "./model";
 import { fuzzyMatch, plural } from "./text";
 import { holdFocus, listKeys, searchKeys, viewScope } from "./vim";
@@ -25,6 +25,8 @@ export class PanelView extends ItemView {
 	private shown = 0;
 	/** Find by meaning for one search: null while AI looks. */
 	private meaning: { query: string; clips: Clip[] | null } | null = null;
+	/** The clips the search shows from this device, so AI only looks at others. */
+	private shownIds = new Set<string>();
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -115,6 +117,8 @@ export class PanelView extends ItemView {
 		if (!this.bodyEl) return;
 		const back = holdFocus(this.bodyEl);
 		await this.drawNow();
+		// The count under Search: every clip shown, from matches, meaning search and AI.
+		this.headEl.querySelector(".oc-search-count")?.setText(plural(this.bodyEl.querySelectorAll(".oc-card").length, "clip"));
 		back();
 	}
 
@@ -145,7 +149,8 @@ export class PanelView extends ItemView {
 				.filter((x) => x.m)
 				.sort((a, b) => (b.m?.score ?? 0) - (a.m?.score ?? 0) || b.c.clipped - a.c.clipped)
 				.slice(0, 60);
-			head.createDiv({ cls: "oc-panel-sub", text: plural(hits.length, "clip") });
+			head.createDiv({ cls: "oc-panel-sub oc-search-count", text: plural(hits.length, "clip") });
+			this.shownIds = new Set(hits.map((h) => h.c.id));
 			for (const h of hits) clipCard(body, this.plugin, h.c, { ...this.look(), ranges: h.m?.ranges.filter((r) => r[1] <= h.c.text.length) });
 			// Meaning search on this device: clips close in meaning, right away, with no AI.
 			const meaning = this.plugin.meaning;
@@ -299,9 +304,9 @@ export class PanelView extends ItemView {
 		void this.draw();
 		const store = this.plugin.store;
 		const pool = store.clips.filter((c) => !store.state(c.id).arch);
-		const clips = await clipsByMeaning(this.plugin, query, pool, new Set(), true);
+		const clips = await aiFind(this.plugin, query, pool, new Set(this.shownIds));
 		if (this.meaning?.query !== query) return;
-		this.meaning = { query, clips };
+		this.meaning = { query, clips: clips ?? [] };
 		void this.draw();
 	}
 
@@ -313,6 +318,7 @@ export class PanelView extends ItemView {
 		const m = this.meaning?.query === query ? this.meaning : null;
 		const ai = this.plugin.ai;
 		const none = shown.size === 0;
+		this.shownIds = shown;
 		if (m && !m.clips) {
 			body.createDiv({ cls: "oc-loading oc-pad", text: "AI is looking…" });
 			return;

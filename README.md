@@ -187,7 +187,7 @@ Finds clips that mean the same thing in other words. A search for "terrified" al
 - **Light.** Nothing loads until you search or the side bar needs it. Each clip's meaning takes 128 bytes. Turning it off frees the memory.
 - **On every device.** A phone or computer that syncs your settings gets the model by itself, the first time it needs it. Each device finds meanings for its clips in a moment. Turn off **Get it on other devices** to stop that.
 - **How close**: Close shows fewer clips, very near in meaning. Loose shows more.
-- **Search deeper with AI.** With AI set up, **Search deeper with AI** shows under the results, or as a button when nothing is found. AI's finds show under **Found by AI**. AI is asked only when you press it.
+- **Search deeper with AI.** With AI set up, **Search deeper with AI** shows under the results, or as a button when nothing is found. Clips gathers about 36 likely clips, and AI reads them with where each is from and keeps only the ones that fit. Search the way you remember it, even if you remember it wrong. AI's finds show under **Found by AI**. About 1,500 tokens for each search, and AI is asked only when you press it.
 
 ![An empty search offers Search deeper with AI](docs/media/search-deeper.png)
 

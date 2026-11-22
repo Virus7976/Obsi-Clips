@@ -2,7 +2,7 @@
 import { ItemView, Menu, Modal, Notice, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
 import type ClipsPlugin from "./main";
 import { COLORS, GROUPS, KINDS, SORTS, filterCount, groupHits, runQuery, splitSearch, type Clip, type Hit, type Query } from "./model";
-import { clipCard, iconButton, kindName, ListPicker, TagsModal } from "./ui";
+import { aiFind, clipCard, iconButton, kindName, ListPicker, TagsModal } from "./ui";
 import { fuzzyMatch, plural } from "./text";
 import { GET_MB } from "./meaning";
 import { holdFocus, listKeys, searchKeys, viewScope } from "./vim";
@@ -203,6 +203,16 @@ export class LibraryView extends ItemView {
 
 	/** Also finds clips close in meaning: other words for the search, matched against your clips. */
 	private async addMeaning(words: string) {
+		// Search deeper: AI reads likely clips and keeps the ones that fit, after the results from this device.
+		if (this.deepFor === words) {
+			const have = new Set([...this.hits.map((h) => h.clip.id), ...this.extra.map((h) => h.clip.id)]);
+			const base = runQuery(this.plugin.store.clips, this.plugin.data.clips, { ...this.q, text: this.q.text.replace(words, "").trim() });
+			const found = await aiFind(this.plugin, words, base.map((h) => h.clip), have);
+			if (splitSearch(this.q.text).words.trim() !== words) return;
+			this.deep = (found ?? []).slice(0, 40).map((c) => ({ clip: c, score: 0, ranges: [] }));
+			this.draw();
+			return;
+		}
 		const extraWords = await this.plugin.ai.meaningWords(words, this.meaningLooking === words);
 		if (splitSearch(this.q.text).words.trim() !== words) return;
 		this.meaningFor = words;
