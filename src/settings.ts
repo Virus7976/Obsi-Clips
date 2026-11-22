@@ -22,7 +22,9 @@ export interface AiSettings {
 }
 
 export interface Settings {
-	/** Folders that hold clips. Empty until set up. */
+	/** Where clips are: anywhere in the vault, or only in some folders. */
+	scope: "vault" | "folders";
+	/** Folders that hold clips, when scope is "folders". */
 	folders: string[];
 	/** ==marked text== inside normal paragraphs counts as a clip. */
 	marks: boolean;
@@ -56,6 +58,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+	scope: "vault",
 	folders: [],
 	marks: true,
 	plainQuotes: false,
@@ -148,6 +151,8 @@ export function mergeData(raw: unknown): PluginData {
 		settings: {
 			...DEFAULT_SETTINGS,
 			...s,
+			// 0.1.0 only had folders: someone who picked folders keeps them.
+			scope: s.scope === "vault" || s.scope === "folders" ? s.scope : s.folders?.length ? "folders" : "vault",
 			query: { ...EMPTY_QUERY, ...(s.query ?? {}) },
 			ai: aiFrom(s.ai),
 		},

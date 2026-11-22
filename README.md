@@ -9,10 +9,10 @@ Clips is part of the Obsi apps. It works with the clips from ObsiTube, ObsiRead,
 ## Start
 
 1. Install and turn on the plugin.
-2. A short setup opens. It finds the folders that hold clips and shows how many clips each one has. Tick the folders you want and press **Use these folders**.
+2. A short setup asks where your clips are. Press **Use my whole vault** if you do not use folders: every note with highlights counts. Or tick the folders that hold clips and press **Use these folders**. It shows how many clips each folder has.
 3. The library opens. The side bar on the right shows **Clips for this note**.
 
-You can change the folders at any time in **Settings → Clips → Clip folders**, or press **Find my clip folders** there.
+You can change this at any time in **Settings → Clips → Where clips are**.
 
 ### On a phone or tablet
 
@@ -81,7 +81,7 @@ A clip counts as used when a note:
 - links to its block (`[[Book#^clip-abc123]]`), or
 - has the clip text pasted in (turn this off in **Counting uses**).
 
-Notes inside your clip folders do not count, so two books that share a quote do not count as uses of each other. Add more folders to ignore, like templates, in **Counting uses**.
+A clip's own note never counts as a use of it. With folders, notes inside your clip folders do not count either, so two books that share a quote do not count as uses of each other. A clip you put in as a quote is a use, never a second copy of the clip. Add more folders to ignore, like templates, in **Counting uses**.
 
 In your clip notes, each used clip shows a small **Used 3×** at its end, in both editing and reading view. Turn it off in **Counting uses**.
 
@@ -138,7 +138,7 @@ Tidy never changes your notes by itself. It shows you the clip and opens the not
 | Readest | A list item with the highlight and `*page 12*`, and an optional `**Note:**` |
 | Web Clipper and others | Any `==marked==` text inside a paragraph or a quote |
 
-Plain `>` quotes with no marks can count too. Turn on **Plain quotes count** in **Clip folders**.
+Plain `>` quotes with no marks can count too. Turn on **Plain quotes count** in **Where clips are**.
 
 Your own note under a clip (the paragraph after an ObsiTube or ObsiRead quote, or Readest's **Note:**) shows under the clip.
 
@@ -187,7 +187,7 @@ While Obsidian may use the phone's model, the Obsi app shows a small notificatio
 
 ## Settings
 
-- **Clip folders**: which folders hold clips, marked text, plain quotes, and the shortest clip to count.
+- **Where clips are**: the whole vault or only some folders, marked text, plain quotes, and the shortest clip to count.
 - **Putting clips in**: quote, embed or plain text, the callout type, and whether to add your note and where it came from.
 - **Counting uses**: pasted text counts or not, folders to ignore, and the **Used 3×** marks.
 - **Review**: how many clips a day, the daily notice and the status bar.

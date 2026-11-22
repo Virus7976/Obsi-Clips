@@ -362,7 +362,7 @@ export class TidyModal extends Modal {
 				const at = l.link.indexOf("#^");
 				if (at < 0) continue;
 				const dest = mc.getFirstLinkpathDest(l.link.slice(0, at), f.path);
-				if (!dest || !this.plugin.store.inFolders(dest.path)) continue;
+				if (!dest || !this.plugin.store.isSource(dest.path)) continue;
 				const id = l.link.slice(at + 2).toLowerCase();
 				const blocks = mc.getFileCache(dest)?.blocks ?? {};
 				if (!Object.keys(blocks).some((b) => b.toLowerCase() === id)) out.push({ from: f.path, link: l.original, line: l.position.start.line });
@@ -448,7 +448,17 @@ export class SetupModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.createEl("p", { text: "Find the right clip while you write, see how often each one is used, and bring back the ones you forgot." });
-		contentEl.createEl("p", { cls: "oc-setup-q", text: "Which folders hold your clips?" });
+		contentEl.createEl("p", { cls: "oc-setup-q", text: "Where are your clips?" });
+		const whole = contentEl.createDiv({ cls: "oc-setup-row oc-setup-whole" });
+		const wt = whole.createDiv({ cls: "oc-setup-label" });
+		wt.createDiv({ text: "Anywhere in my vault" });
+		wt.createDiv({ cls: "oc-muted", text: "Every note with highlights counts. No folders needed." });
+		const wb = whole.createEl("button", { text: "Use my whole vault", cls: "mod-cta", attr: { type: "button" } });
+		wb.addEventListener("click", () => {
+			this.close();
+			void this.plugin.useWholeVault(true);
+		});
+		contentEl.createEl("p", { cls: "oc-setup-q", text: "Or only in these folders:" });
 		const list = contentEl.createDiv({ cls: "oc-setup-list" });
 		if (!this.guesses) {
 			list.createDiv({ cls: "oc-loading", text: "Looking through your vault…" });
@@ -472,7 +482,7 @@ export class SetupModal extends Modal {
 			}).open();
 		});
 		const bar = contentEl.createDiv({ cls: "modal-button-container" });
-		const go = bar.createEl("button", { text: "Use these folders", cls: "mod-cta" });
+		const go = bar.createEl("button", { text: "Use these folders" });
 		go.addEventListener("click", () => {
 			const picked = (this.guesses ?? []).filter((g) => g.on).map((g) => g.path);
 			if (!picked.length) {

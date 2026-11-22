@@ -81,6 +81,25 @@ export class ClipStore extends Events {
 		return f.some((d) => d === "/" || d === "" || path === d || path.startsWith(d.replace(/\/$/, "") + "/"));
 	}
 
+	/** True when clips are read from this note: anywhere in the vault, or only in the clip folders. */
+	isSource(path: string): boolean {
+		if (this.ignored(path)) return false;
+		return this.settings.scope === "vault" ? true : this.inFolders(path);
+	}
+
+	/** Folders are set up, or not needed. */
+	get needsFolders(): boolean {
+		return this.settings.scope === "folders" && !this.settings.folders.length;
+	}
+
+	/**
+	 * Notes that only hold sources, never writing, so pasted text there is not a use. With folders,
+	 * that is the clip folders. With the whole vault, no note is left out: a clip's own note is skipped later.
+	 */
+	private sourceOnly(path: string): boolean {
+		return this.settings.scope === "folders" && this.inFolders(path);
+	}
+
 	private ignored(path: string): boolean {
 		return this.settings.ignoreFolders.some((d) => d && (path === d || path.startsWith(d.replace(/\/$/, "") + "/")));
 	}
@@ -91,7 +110,7 @@ export class ClipStore extends Events {
 		this.scanning = true;
 		this.trigger("change");
 		this.files.clear();
-		const notes = this.app.vault.getMarkdownFiles().filter((f) => this.inFolders(f.path));
+		const notes = this.app.vault.getMarkdownFiles().filter((f) => this.isSource(f.path));
 		let n = 0;
 		for (const f of notes) {
 			await this.readFile(f);
@@ -185,6 +204,17 @@ export class ClipStore extends Events {
 			byPath.set(path, here);
 		}
 		for (const c of byId.values()) {
+			if (c.places.some((p) => p.format !== "quote")) {
+				const copies = new Set(c.places.filter((p) => p.format === "quote").map((p) => p.path));
+				if (copies.size) {
+					c.places = c.places.filter((p) => p.format !== "quote");
+					for (const path of copies) {
+						const here = byPath.get(path)?.filter((x) => x !== c) ?? [];
+						if (here.length) byPath.set(path, here);
+						else byPath.delete(path);
+					}
+				}
+			}
 			c.places.sort((a, b) => (this.files.get(a.path)?.meta.clipped ?? 0) - (this.files.get(b.path)?.meta.clipped ?? 0));
 			const own = this.state(c.id).tags ?? [];
 			const all = new Map<string, string>();
@@ -247,7 +277,7 @@ export class ClipStore extends Events {
 		if (this.settings.countQuotes && !this.matcher.empty) {
 			for (const f of notes) {
 				// Clip notes are sources, not writing: the same quote in two books is not a use.
-				if (this.ignored(f.path) || this.inFolders(f.path)) continue;
+				if (this.ignored(f.path) || this.sourceOnly(f.path)) continue;
 				const old = cache.files[f.path];
 				let ids: string[];
 				if (sameClips && old && old[0] === f.stat.mtime && old[1] === f.stat.size) ids = old[2];
@@ -371,8 +401,8 @@ export class ClipStore extends Events {
 		const fc = this.files.get(oldPath);
 		if (fc) {
 			this.files.delete(oldPath);
-			if (this.inFolders(path)) this.files.set(path, fc);
-		} else if (this.inFolders(path)) this.pending.add(path);
+			if (this.isSource(path)) this.files.set(path, fc);
+		} else if (this.isSource(path)) this.pending.add(path);
 		const hits = this.quoteHits.get(oldPath);
 		if (hits) {
 			this.quoteHits.delete(oldPath);
@@ -398,12 +428,12 @@ export class ClipStore extends Events {
 		for (const path of paths) {
 			const f = this.app.vault.getFileByPath(path);
 			if (!f || f.extension !== "md") continue;
-			if (this.inFolders(path)) {
+			if (this.isSource(path)) {
 				const before = JSON.stringify(this.files.get(path)?.parsed ?? []);
 				await this.readFile(f);
 				if (JSON.stringify(this.files.get(path)?.parsed ?? []) !== before) clipsChanged = true;
 			}
-			if (this.settings.countQuotes && !this.ignored(path) && !this.inFolders(path)) {
+			if (this.settings.countQuotes && !this.ignored(path) && !this.sourceOnly(path)) {
 				const ids = [...this.matcher.find(await this.app.vault.cachedRead(f))];
 				if (ids.length) this.quoteHits.set(path, new Set(ids));
 				else this.quoteHits.delete(path);

@@ -75,9 +75,8 @@ export default class ClipsPlugin extends Plugin {
 		this.target.track(this.app.workspace.getMostRecentLeaf());
 		if (!Platform.isMobile && this.settings.statusBar) this.makeStatus();
 		const fresh = !this.data.welcomed;
-		if (!this.settings.folders.length) {
-			if (fresh) new SetupModal(this).open();
-		} else await this.store.rebuild();
+		if (fresh) new SetupModal(this).open();
+		if (!this.store.needsFolders) await this.store.rebuild();
 		this.afterBuild(fresh);
 		if (this.settings.panelOnStart) void this.openPanel(false);
 		this.whatsNewAfterUpdate(fresh);
@@ -112,7 +111,8 @@ export default class ClipsPlugin extends Plugin {
 
 	/** Called after a setting changes in Settings. */
 	settingChanged(key: string) {
-		if (["marks", "plainQuotes", "minWords", "countQuotes"].includes(key)) void this.store.rebuild();
+		if (["marks", "plainQuotes", "minWords", "countQuotes", "scope", "ignoreFolders"].includes(key)) void this.store.rebuild();
+		if (key === "scope" && this.store.needsFolders) this.openSetup();
 		if (key === "badges") redrawBadges(this);
 		if (key === "statusBar") {
 			if (this.settings.statusBar && !Platform.isMobile) this.makeStatus();
@@ -157,7 +157,22 @@ export default class ClipsPlugin extends Plugin {
 		new Notice("AI is off. Its key and links are removed from this device.");
 	}
 
+	/** Clips are read from every note. */
+	async useWholeVault(openAfter = false) {
+		this.settings.scope = "vault";
+		this.data.welcomed = true;
+		await this.saveNow();
+		await this.store.rebuild();
+		if (openAfter) {
+			new Notice(`Found ${plural(this.store.clips.length, "clip")}`);
+			this.openLibrary();
+			void this.openPanel(false);
+		}
+		this.settingTab.update();
+	}
+
 	async setFolders(folders: string[], openAfter = false) {
+		this.settings.scope = "folders";
 		this.settings.folders = folders;
 		this.data.welcomed = true;
 		await this.saveNow();
@@ -189,8 +204,8 @@ export default class ClipsPlugin extends Plugin {
 	 */
 	openPicker() {
 		if (!this.store.ready) {
-			new Notice(this.settings.folders.length ? "Still reading your clips. Try again in a moment." : "Pick your clip folders first.");
-			if (!this.settings.folders.length) this.openSetup();
+			new Notice(this.store.needsFolders ? "Pick your clip folders first." : "Still reading your clips. Try again in a moment.");
+			if (this.store.needsFolders) this.openSetup();
 			return;
 		}
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -280,8 +295,8 @@ export default class ClipsPlugin extends Plugin {
 	/** Today's clips. With more, and today's are done, it adds a few more instead of stopping. */
 	openReview(more = false) {
 		if (!this.store.ready) {
-			new Notice(this.settings.folders.length ? "Still reading your clips. Try again in a moment." : "Pick your clip folders first.");
-			if (!this.settings.folders.length) this.openSetup();
+			new Notice(this.store.needsFolders ? "Pick your clip folders first." : "Still reading your clips. Try again in a moment.");
+			if (this.store.needsFolders) this.openSetup();
 			return;
 		}
 		if (!this.reviewLeft()) {

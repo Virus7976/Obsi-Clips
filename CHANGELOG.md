@@ -1,5 +1,14 @@
 # What's new
 
+## 0.3.0 (22 Nov 2026)
+
+**No folders needed.**
+
+![Setup asks where your clips are](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.3.0/docs/media/setup-scope.png)
+
+- **Use your whole vault.** Every note with highlights counts, wherever it is. Choose it in setup, or in **Settings → Clips → Where clips are**. You can still pick folders instead.
+- **A clip you put in as a quote is a use**, never a second copy of the clip.
+
 ## 0.2.0 (22 Nov 2026)
 
 **AI on your own device, and four strong commands.**

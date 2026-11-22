@@ -834,3 +834,9 @@ a.oc-ai-keylink.is-hidden { display: none; }
 .markdown-embed[src*="#^clip-"] blockquote { border-inline-start: none; padding: 0; margin: 0; background: none; }
 .markdown-embed[src*="#^clip-"] mark { background: none; color: inherit; }
 .markdown-embed[src*="#^clip-"] a.external-link { font-size: var(--font-ui-small); color: var(--text-muted); }
+
+.oc-setup-whole { align-items: center; border: 1px solid var(--background-modifier-border); margin-bottom: var(--size-4-2); }
+.oc-setup-whole .oc-setup-label { flex: 1; min-width: 0; }
+.oc-setup-whole button { flex: none; }
+.is-mobile .oc-setup-whole { flex-wrap: wrap; }
+.is-mobile .oc-setup-whole button { width: 100%; min-height: 44px; }

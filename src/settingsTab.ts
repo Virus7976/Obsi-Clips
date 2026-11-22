@@ -50,13 +50,24 @@ export class ClipsSettingTab extends PluginSettingTab {
 				items: [
 					{
 						type: "page",
-						name: "Clip folders",
-						desc: "Where your clips are.",
-						displayValue: () => (s.folders.length ? s.folders.join(", ") : "Not set"),
-						status: () => (s.folders.length ? null : "warning"),
+						name: "Where clips are",
+						desc: "Your whole vault, or only some folders.",
+						displayValue: () => (s.scope === "vault" ? "Whole vault" : s.folders.length ? s.folders.join(", ") : "Not set"),
+						status: () => (store.needsFolders ? "warning" : null),
 						items: [
 							{
+								type: "group",
+								items: [
+									{
+										name: "Read clips from",
+										desc: "Whole vault: every note with highlights counts. Only these folders: only notes in the folders below.",
+										control: { type: "dropdown", key: "scope", options: { vault: "Whole vault", folders: "Only these folders" } },
+									},
+								],
+							},
+							{
 								type: "list",
+								visible: () => s.scope === "folders",
 								heading: "Folders",
 								emptyState: "No folders yet. Add one, or find them for you.",
 								items: s.folders.map((f) => ({ name: f, desc: store.ready ? plural(store.allSources().filter((x) => x.path === f || x.path.startsWith(f + "/")).reduce((n, x) => n + x.count, 0), "clip") : "" })),
@@ -76,7 +87,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 							{
 								type: "group",
 								items: [
-									{ name: "Find my clip folders", desc: "Look through the vault and pick from the folders that hold clips.", action: () => this.plugin.openSetup() },
+									{ name: "Find my clip folders", desc: "Look through the vault and pick from the folders that hold clips.", action: () => this.plugin.openSetup(), visible: () => s.scope === "folders" },
 									toggle("Marked text counts", "==Marked text== inside a normal paragraph counts as a clip.", "marks"),
 									toggle("Plain quotes count", "A > quote with no marks counts as a clip. Off: in a saved article these are the author's quotes.", "plainQuotes"),
 									slider("Shortest clip", "Clips with fewer words are left out.", "minWords", 1, 10),
