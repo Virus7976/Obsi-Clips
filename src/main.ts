@@ -63,7 +63,6 @@ export default class ClipsPlugin extends Plugin {
 		this.registerEvent(this.store.on("change", () => {
 			redrawBadges(this);
 			this.updateStatus();
-			this.meaning.warmSoon();
 		}));
 		this.registerEvent(this.meaning.on("state", () => {
 			this.settingTab.update();
@@ -311,7 +310,8 @@ export default class ClipsPlugin extends Plugin {
 	async getMeaning() {
 		this.settings.index.on = true;
 		await this.saveNow();
-		await this.meaning.get();
+		await this.meaning.start();
+		await (this.meaning.present ? this.meaning.load() : this.meaning.get());
 		if (this.meaning.ready) new Notice(`Meaning search is on. ${plural(this.store.clips.length, "clip")} can be found by meaning.`);
 		else if (this.meaning.error) new Notice("Could not get the meaning model. " + this.meaning.error);
 	}

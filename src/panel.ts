@@ -154,7 +154,8 @@ export class PanelView extends ItemView {
 				if (near.length) {
 					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
 					for (const n of near) clipCard(body, this.plugin, n.clip, this.look());
-				} else if (!hits.length) this.empty("No clips match", "Nothing close in meaning either. Try other words.", "", () => undefined);
+				} else if (meaning.waking) body.createDiv({ cls: "oc-loading oc-pad", text: meaning.state === "getting" ? "Getting the meaning model…" : "Starting meaning search…" });
+				else if (!hits.length) this.empty("No clips match", "Nothing close in meaning either. Try other words.", "", () => undefined);
 				return;
 			}
 			const m = this.meaning?.query === query ? this.meaning : null;
@@ -168,7 +169,7 @@ export class PanelView extends ItemView {
 				}
 			} else if (!hits.length) {
 				const ai = this.plugin.ai.usable();
-				const getting = meaning.state === "getting" || meaning.state === "loading";
+				const getting = meaning.waking;
 				this.empty(
 					"No clips match",
 					ai ? "Try other words, or let AI look for clips that mean the same thing." : getting ? "Getting the meaning model…" : `Try other words. Or find clips that mean the same thing. This gets a small model once (${GET_MB} MB).`,
@@ -217,7 +218,7 @@ export class PanelView extends ItemView {
 		// Meaning search on this device: clips close in meaning join the clips that share words.
 		const byMeaning = this.plugin.meaning.usable("sidebar") && text.trim().split(/\s+/).length >= 5;
 		if (byMeaning) {
-			const near = this.plugin.meaning.near(f.basename + ". " + text, store.clips, skip, this.plugin.settings.panelCount + 10);
+			const near = this.plugin.meaning.near(f.basename + ". " + text, store.clips, skip, this.plugin.settings.panelCount + 10, 1024);
 			order = blend(ranked, near.map((n) => n.clip.id));
 		}
 		if (!byMeaning && this.picks && this.picksFor === f.path) {

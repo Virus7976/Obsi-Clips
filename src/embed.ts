@@ -1,5 +1,5 @@
-// Meaning vectors on this device, with no AI app: a small "static" model (Model2Vec potion-base-8M, MIT).
-// Each word piece has a fixed list of 256 numbers. A text's vector is the mean of its pieces' lists, made unit length.
+// Meaning vectors on this device, with no AI app: a small "static" model (Model2Vec potion-base-4M, MIT).
+// Each word piece has a fixed list of 128 numbers. A text's vector is the mean of its pieces' lists, made unit length.
 // Two texts close in meaning have vectors that point the same way. No Obsidian parts, so tests can run it.
 
 const MAGIC = 0x314d4c43; // "CLM1"
@@ -21,8 +21,9 @@ export function readSafetensors(buf: ArrayBuffer): { rows: number; dim: number; 
 	if (!t?.shape || !t.data_offsets) throw new Error("The model file has no table.");
 	const [rows, dim] = t.shape;
 	const start = 8 + headLen + t.data_offsets[0];
-	const bytes = buf.slice(start, start + rows * dim * 4);
-	return { rows, dim, data: new Float32Array(bytes) };
+	// A view when the table starts on a 4-byte line, so 15 MB is not copied.
+	const data = start % 4 === 0 ? new Float32Array(buf, start, rows * dim) : new Float32Array(buf.slice(start, start + rows * dim * 4));
+	return { rows, dim, data };
 }
 
 /** Makes the small 8-bit copy. The same input always gives the same bytes, so two devices make the same file. */

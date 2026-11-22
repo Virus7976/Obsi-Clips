@@ -1,30 +1,40 @@
 // Meaning search on this device: gets the small model once, keeps a meaning vector for each clip, and finds the
 // clips closest in meaning to a search or a note. No AI app, no key, no tokens.
+// Kept light: nothing loads until a search or the side bar needs it, and each clip's meaning is 128 bytes.
 import { Events, normalizePath, requestUrl, type App } from "obsidian";
-import { pack, readSafetensors, similarity, StaticModel, unpack, WordPiece } from "./embed";
+import { pack, readSafetensors, StaticModel, unpack, WordPiece } from "./embed";
 import type { Clip } from "./model";
 import type { IndexSettings } from "./settings";
 
 // One fixed version of the model, so every device gets the same bytes.
-const REV = "bf8b056651a2c21b8d2565580b8569da283cab23";
-const BASE = `https://huggingface.co/minishlab/potion-base-8M/resolve/${REV}/`;
-const MODEL = { url: BASE + "model.safetensors", sha: "f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2", size: 30236760 };
+const REV = "9b3cff412d30be9ae8603fe10224c224f3401869";
+const BASE = `https://huggingface.co/minishlab/potion-base-4M/resolve/${REV}/`;
+const MODEL = { url: BASE + "model.safetensors", sha: "8a7140edd17ffab30ddcff1135eda127df57abfae856203dbd7b3d061295c31a", size: 15118424 };
 const VOCAB = { url: BASE + "vocab.txt", sha: "1394523a67ddd404a825428018c0582a6998bcfa044ecbcbf1f4d71adb94c61c" };
-const KEPT = "potion-base-8M.bin";
+const KEPT = "potion-base-4M.bin";
 const KEPT_VOCAB = "vocab.txt";
+/** Model files from earlier versions, removed when found. */
+const OLD = ["potion-base-8M.bin"];
 
 /** The download and what is kept, for Settings. */
-export const GET_MB = 30;
-export const KEEP_MB = 8;
+export const GET_MB = 15;
+export const KEEP_MB = 4;
 
-/** How close a clip must be, for each choice in Settings. */
-const NEAR: Record<IndexSettings["near"], number> = { close: 0.45, some: 0.36, loose: 0.28 };
+/** How close a clip must be, for each choice in Settings. Measured on a real library: unrelated clips score about 0.2. */
+const NEAR: Record<IndexSettings["near"], number> = { close: 0.5, some: 0.41, loose: 0.33 };
 
-export type MeaningState = "off" | "missing" | "getting" | "loading" | "ready" | "failed";
+/** "idle": the model is on this device but not loaded yet. It loads the first time it is needed. */
+export type MeaningState = "off" | "missing" | "idle" | "getting" | "loading" | "ready" | "failed";
 
 export interface Near {
 	clip: Clip;
 	sim: number;
+}
+
+interface Vec {
+	text: string;
+	tags: string[];
+	v: Int8Array | null;
 }
 
 export class MeaningIndex extends Events {
@@ -33,7 +43,7 @@ export class MeaningIndex extends Events {
 	/** The model files are on this device. */
 	present = false;
 	private model: StaticModel | null = null;
-	private vecs = new Map<string, { key: string; v: Float32Array | null }>();
+	private vecs = new Map<string, Vec>();
 	private warmTimer = 0;
 	private job: Promise<void> | null = null;
 
@@ -55,9 +65,14 @@ export class MeaningIndex extends Events {
 		return this.s().on && this.state === "ready" && !!this.model;
 	}
 
-	/** Ready, and the setting for this place (search or side bar) is on. */
+	/** Turned on, but the model is still on its way: getting, loading, or waiting to load. */
+	get waking(): boolean {
+		return this.s().on && !this.model && (this.state === "idle" || this.state === "getting" || this.state === "loading" || (this.state === "missing" && this.s().auto));
+	}
+
+	/** Meaning search answers here (search or side bar): ready, or ready in a moment. */
 	usable(where: "search" | "sidebar"): boolean {
-		return this.ready && this.s()[where];
+		return this.s()[where] && (this.ready || this.waking);
 	}
 
 	/** How many clips have a meaning now. */
@@ -73,27 +88,28 @@ export class MeaningIndex extends Events {
 		this.trigger("state");
 	}
 
-	/** When Obsidian opens: loads the model, or gets it when this device has none and the settings say to. */
+	/** When Obsidian opens: only looks for the files. Nothing is loaded or downloaded until it is needed. */
 	async start(): Promise<void> {
-		this.present = await this.hasFiles();
-		if (!this.s().on) {
-			this.set("off");
-			return;
-		}
+		const a = this.app.vault.adapter;
+		for (const f of OLD) if (await a.exists(this.folder + "/" + f)) await a.remove(this.folder + "/" + f);
+		this.present = (await a.exists(this.folder + "/" + KEPT)) && (await a.exists(this.folder + "/" + KEPT_VOCAB));
+		if (!this.s().on) this.set("off");
+		else this.set(this.present ? "idle" : "missing");
+	}
+
+	/** Loads the model, or gets it first when this device has none and the settings allow it. */
+	wake(): Promise<void> {
+		if (this.model || this.job || !this.s().on || this.state === "failed") return this.job ?? Promise.resolve();
 		if (this.present) return this.load();
 		if (this.s().auto) return this.get();
-		this.set("missing");
+		return Promise.resolve();
 	}
 
-	private async hasFiles(): Promise<boolean> {
-		const a = this.app.vault.adapter;
-		return (await a.exists(this.folder + "/" + KEPT)) && (await a.exists(this.folder + "/" + KEPT_VOCAB));
-	}
-
-	/** Downloads the model once (30 MB), checks it, and keeps a small copy (8 MB) in the plugin folder. */
+	/** Downloads the model once (15 MB), checks it, and keeps a small copy (4 MB) in the plugin folder. */
 	get(): Promise<void> {
 		if (this.job) return this.job;
-		this.job = (async () => {
+		// One step later, so this.job is set before the state event: a redraw that asks again waits for this one.
+		this.job = Promise.resolve().then(async () => {
 			this.set("getting");
 			try {
 				const [m, v] = await Promise.all([requestUrl({ url: MODEL.url }), requestUrl({ url: VOCAB.url })]);
@@ -108,108 +124,135 @@ export class MeaningIndex extends Events {
 				await a.writeBinary(this.folder + "/" + KEPT, small);
 				await a.writeBinary(this.folder + "/" + KEPT_VOCAB, vocab);
 				this.present = true;
+				this.job = null;
 				await this.load();
 			} catch (e) {
 				this.set("failed", e instanceof Error ? e.message : String(e));
 			}
-		})().finally(() => (this.job = null));
+		}).finally(() => (this.job = null));
 		return this.job;
 	}
 
-	async load(): Promise<void> {
-		this.set("loading");
-		try {
-			const a = this.app.vault.adapter;
-			const packed = unpack(await a.readBinary(this.folder + "/" + KEPT));
-			const words = (await a.read(this.folder + "/" + KEPT_VOCAB)).split(/\r?\n/);
-			this.model = new StaticModel(packed, new WordPiece(words));
-			this.vecs.clear();
-			this.set("ready");
-			this.warmSoon(0);
-		} catch (e) {
-			this.model = null;
-			this.set("failed", e instanceof Error ? e.message : String(e));
-		}
+	load(): Promise<void> {
+		if (this.job) return this.job;
+		this.job = Promise.resolve().then(async () => {
+			this.set("loading");
+			try {
+				const a = this.app.vault.adapter;
+				const packed = unpack(await a.readBinary(this.folder + "/" + KEPT));
+				const words = (await a.read(this.folder + "/" + KEPT_VOCAB)).split(/\r?\n/);
+				this.model = new StaticModel(packed, new WordPiece(words));
+				this.vecs.clear();
+				this.set("ready");
+				this.warm();
+			} catch (e) {
+				this.model = null;
+				this.set("failed", e instanceof Error ? e.message : String(e));
+			}
+		}).finally(() => (this.job = null));
+		return this.job;
 	}
 
 	/** Deletes the model from this device. */
 	async remove(): Promise<void> {
-		this.model = null;
-		this.vecs.clear();
+		this.unload();
 		const a = this.app.vault.adapter;
 		if (await a.exists(this.folder)) await a.rmdir(this.folder, true);
 		this.present = false;
 		this.set("off");
 	}
 
-	/** After the setting changes. */
+	/** After the setting changes. Off frees the memory at once. */
 	async turned(on: boolean): Promise<void> {
 		if (!on) {
-			this.model = null;
-			this.vecs.clear();
+			this.unload();
 			this.set("off");
 		} else if (!this.model) await this.start();
 	}
 
-	embed(text: string): Float32Array | null {
-		return this.model?.embed(text) ?? null;
+	private unload() {
+		window.clearTimeout(this.warmTimer);
+		this.model = null;
+		this.vecs.clear();
+	}
+
+	embed(text: string, maxPieces?: number): Float32Array | null {
+		return this.model?.embed(text, maxPieces) ?? null;
 	}
 
 	/** The clip's meaning, made once and made again only when its words or tags change. */
-	vector(c: Clip): Float32Array | null {
-		if (!this.model) return null;
-		const key = c.text + "\n" + c.tags.join(" ");
+	private vector(c: Clip): Int8Array | null {
 		const have = this.vecs.get(c.id);
-		if (have && have.key === key) return have.v;
-		const v = this.model.embed(key);
-		this.vecs.set(c.id, { key, v });
+		if (have && have.text === c.text && sameList(have.tags, c.tags)) return have.v;
+		const f = this.model?.embed(c.text + "\n" + c.tags.join(" "));
+		const v = f ? toBytes(f) : null;
+		this.vecs.set(c.id, { text: c.text, tags: c.tags, v });
 		return v;
 	}
 
-	/** The clips closest in meaning, best first. Only clips past the closeness set in Settings. */
-	near(what: string | Float32Array, pool: Clip[], skip: Set<string> = new Set(), limit = 40, loosen = 1): Near[] {
-		if (!this.model) return [];
-		const q = typeof what === "string" ? this.embed(what) : what;
+	/**
+	 * The clips closest in meaning, best first. Only clips past the closeness set in Settings.
+	 * The first call loads the model and returns nothing; the side bar and library draw again when it is ready.
+	 */
+	near(what: string, pool: Clip[], skip: Set<string> = new Set(), limit = 40, maxPieces?: number): Near[] {
+		if (!this.model) {
+			void this.wake();
+			return [];
+		}
+		const q = this.embed(what, maxPieces);
 		if (!q) return [];
-		const min = NEAR[this.s().near] * loosen;
+		const min = NEAR[this.s().near];
 		const out: Near[] = [];
 		for (const c of pool) {
 			if (skip.has(c.id)) continue;
 			const v = this.vector(c);
 			if (!v) continue;
-			const sim = similarity(q, v);
+			let s = 0;
+			for (let i = 0; i < v.length; i++) s += q[i] * v[i];
+			const sim = s / 127;
 			if (sim >= min) out.push({ clip: c, sim });
 		}
+		// Clips that are gone lose their vector.
+		if (this.vecs.size > this.clips().length + 200) this.prune();
 		out.sort((a, b) => b.sim - a.sim);
 		return out.slice(0, limit);
 	}
 
-	/** New clips get their meaning in the background, a few at a time, so the first search is fast. */
-	warmSoon(ms = 500) {
-		if (!this.model) return;
-		window.clearTimeout(this.warmTimer);
-		this.warmTimer = window.setTimeout(() => {
-			const clips = this.clips();
-			let i = 0;
-			const step = () => {
-				if (!this.model) return;
-				const end = Math.min(clips.length, i + 400);
-				for (; i < end; i++) this.vector(clips[i]);
-				if (i < clips.length) this.warmTimer = window.setTimeout(step, 0);
-				else {
-					// Clips that are gone lose their vector.
-					const ids = new Set(clips.map((c) => c.id));
-					for (const id of [...this.vecs.keys()]) if (!ids.has(id)) this.vecs.delete(id);
-					this.trigger("warm");
-				}
-			};
-			step();
-		}, ms);
+	private prune() {
+		const ids = new Set(this.clips().map((c) => c.id));
+		for (const id of [...this.vecs.keys()]) if (!ids.has(id)) this.vecs.delete(id);
+	}
+
+	/** Once, after loading: every clip gets its meaning in small steps, so the first search is quick. */
+	private warm() {
+		const clips = this.clips();
+		let i = 0;
+		const step = () => {
+			if (!this.model) return;
+			const end = Math.min(clips.length, i + 300);
+			for (; i < end; i++) this.vector(clips[i]);
+			if (i < clips.length) this.warmTimer = window.setTimeout(step, 30);
+		};
+		this.warmTimer = window.setTimeout(step, 300);
 	}
 
 	stop() {
 		window.clearTimeout(this.warmTimer);
 	}
+}
+
+/** A unit vector as 8-bit numbers: a quarter of the memory, and the same order of results. */
+function toBytes(f: Float32Array): Int8Array {
+	const b = new Int8Array(f.length);
+	for (let i = 0; i < f.length; i++) b[i] = Math.round(f[i] * 127);
+	return b;
+}
+
+function sameList(a: string[], b: string[]): boolean {
+	if (a === b) return true;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+	return true;
 }
 
 async function sameHash(buf: ArrayBuffer, sha: string): Promise<boolean> {

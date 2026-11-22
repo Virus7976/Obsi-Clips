@@ -331,7 +331,7 @@ function meaningLabel(plugin: ClipsPlugin): string {
 	const m = plugin.meaning;
 	if (m.state === "getting") return "Getting…";
 	if (m.state === "loading") return "Starting…";
-	if (m.ready) return "On";
+	if (m.ready || m.state === "idle") return "On";
 	if (plugin.settings.index.on && m.state === "failed") return "Not ready";
 	if (plugin.settings.index.on && !m.present) return "Not on this device";
 	return "Off";

@@ -176,6 +176,12 @@ export class LibraryView extends ItemView {
 
 	/** Clips close in meaning, from meaning search on this device. */
 	private nearLocal(words: string) {
+		// While the model loads, the list waits; it draws again when the model is ready.
+		if (!this.plugin.meaning.ready) {
+			void this.plugin.meaning.wake();
+			this.extra = [];
+			return;
+		}
 		this.meaningFor = words;
 		const have = new Set(this.hits.map((h) => h.clip.id));
 		const base = runQuery(this.plugin.store.clips, this.plugin.data.clips, { ...this.q, text: this.q.text.replace(words, "").trim() });
@@ -337,8 +343,8 @@ export class LibraryView extends ItemView {
 			}
 			const ai = this.plugin.ai.usable();
 			const m = this.plugin.meaning;
-			if (m.state === "getting" || m.state === "loading") {
-				this.empty("Getting the meaning model…", "Then clips that mean the same thing show here.", "", () => undefined);
+			if (m.waking && this.plugin.settings.index.search) {
+				this.empty(m.state === "getting" ? "Getting the meaning model…" : "Starting meaning search…", "Then clips that mean the same thing show here.", "", () => undefined);
 				return;
 			}
 			this.empty(

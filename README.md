@@ -150,14 +150,15 @@ Finds clips that mean the same thing in other words. A search for "terrified" al
 
 ![A search for "a good life" finds clips close in meaning](docs/media/meaning-search.png)
 
-- **Get it once.** Press **Find by meaning** when a search finds nothing, or open **Settings → Clips → Meaning search → Get the meaning model**. It downloads a small model once (30 MB, from Hugging Face) and keeps 8 MB in the plugin folder.
+- **Get it once.** Press **Find by meaning** when a search finds nothing, or open **Settings → Clips → Meaning search → Get the meaning model**. It downloads a small model once (15 MB, from Hugging Face) and keeps 4 MB in the plugin folder.
 - **In search.** Clips close in meaning show under the matches, in the side bar and the library.
 - **In the side bar.** **For this note** also lists clips close in meaning, not only clips with the same words.
 - **New clips** are found by meaning as soon as they come in.
-- **On every device.** A phone or computer that syncs your settings gets the model by itself. Each device finds meanings for its clips in a moment. Turn off **Get it on other devices** to stop that.
+- **Light.** Nothing loads until you search or the side bar needs it. Each clip's meaning takes 128 bytes. Turning it off frees the memory.
+- **On every device.** A phone or computer that syncs your settings gets the model by itself, the first time it needs it. Each device finds meanings for its clips in a moment. Turn off **Get it on other devices** to stop that.
 - **How close**: Close shows fewer clips, very near in meaning. Loose shows more.
 
-The model is [potion-base-8M](https://huggingface.co/minishlab/potion-base-8M) by Minish Lab (MIT licence). It works best on words and short phrases. It does not understand a whole sentence the way a chat AI does.
+The model is [potion-base-4M](https://huggingface.co/minishlab/potion-base-4M) by Minish Lab (MIT licence). It works best on words and short phrases. It does not understand a whole sentence the way a chat AI does.
 
 ![Settings for meaning search](docs/media/settings-meaning.png)
 

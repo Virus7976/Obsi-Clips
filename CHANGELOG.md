@@ -1,5 +1,16 @@
 # What's new
 
+## 0.8.1 (22 Nov 2026)
+
+**Meaning search is lighter.**
+
+![A search for "a good life" finds clips close in meaning](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.8.1/docs/media/meaning-search.png)
+
+- **Half the size.** The model downloads 15 MB once and keeps 4 MB. The top results are almost the same.
+- **Nothing loads until you need it.** The model loads the first time you search or the side bar needs it. A phone gets it then too.
+- **Less memory.** Each clip's meaning takes 128 bytes.
+- **Off frees the memory at once.** A model from 0.8.0 is deleted by itself.
+
 ## 0.8.0 (22 Nov 2026)
 
 **Meaning search, with no AI app.**
