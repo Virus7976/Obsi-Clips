@@ -180,7 +180,13 @@ export class ClipsSettingTab extends PluginSettingTab {
 							{
 								type: "group",
 								items: [
-									slider("Most clips shown", "The side bar shows 5 at first, and up to this many with Show more.", "panelCount", 5, 60, 5),
+									{
+										name: "Look",
+										desc: "Calm: two lines and the source. Detailed: more text, uses and why it fits. Text only: just the words.",
+										control: { type: "dropdown", key: "panelLook", options: { calm: "Calm", detailed: "Detailed", text: "Text only" } },
+									},
+									slider("Clips at first", "How many clips show before Show more.", "panelFirst", 3, 20, 1),
+									slider("Most clips shown", "The most clips Show more can reach.", "panelCount", 5, 60, 5),
 									toggle("Open when Obsidian starts", "Show the side bar on start.", "panelOnStart"),
 								],
 							},

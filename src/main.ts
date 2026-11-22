@@ -114,6 +114,7 @@ export default class ClipsPlugin extends Plugin {
 		if (["marks", "plainQuotes", "minWords", "countQuotes", "scope", "ignoreFolders"].includes(key)) void this.store.rebuild();
 		if (key === "scope" && this.store.needsFolders) this.openSetup();
 		if (key === "badges") redrawBadges(this);
+		if (key === "panelLook" || key === "panelFirst" || key === "panelCount") this.redrawPanel();
 		if (key === "statusBar") {
 			if (this.settings.statusBar && !Platform.isMobile) this.makeStatus();
 			else {
@@ -279,6 +280,11 @@ export default class ClipsPlugin extends Plugin {
 		if (leaf) return done();
 		leaf = ws.getLeaf("tab");
 		void leaf.setViewState({ type: LIBRARY_VIEW, active: true }).then(done);
+	}
+
+	/** Draws the side bar again, after its look changes. */
+	redrawPanel() {
+		for (const leaf of this.app.workspace.getLeavesOfType(PANEL_VIEW)) if (leaf.view instanceof PanelView) void leaf.view.draw();
 	}
 
 	/** Opens the side bar with the cursor in its search. Escape there goes back to the note. */

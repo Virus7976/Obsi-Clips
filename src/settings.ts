@@ -1,6 +1,7 @@
 import { EMPTY_QUERY, type ClipState, type Query } from "./model";
 
 export type InsertFormat = "quote" | "embed" | "plain";
+export type PanelLook = "calm" | "detailed" | "text";
 /** Where AI runs: a service with a key, a model app on this device, or the model in an Obsi app on this phone. */
 export type AiProvider =
 	| "openrouter" | "anthropic" | "openai" | "gemini" | "groq" | "mistral" | "deepseek" | "xai" | "custom"
@@ -49,6 +50,10 @@ export interface Settings {
 	statusBar: boolean;
 
 	panelCount: number;
+	/** How many clips the side bar shows at first, and adds with Show more. */
+	panelFirst: number;
+	/** The side bar's look: calm two-line clips, detailed cards, or the words alone. */
+	panelLook: PanelLook;
 	/** Open "For this note" in the side bar when Obsidian starts. */
 	panelOnStart: boolean;
 
@@ -74,6 +79,8 @@ export const DEFAULT_SETTINGS: Settings = {
 	reviewNudge: true,
 	statusBar: true,
 	panelCount: 25,
+	panelFirst: 5,
+	panelLook: "calm",
 	panelOnStart: false,
 	query: EMPTY_QUERY,
 	showWhatsNew: true,

@@ -2,12 +2,11 @@
 import { ItemView, MarkdownView, Platform, setIcon, TFile, type WorkspaceLeaf } from "obsidian";
 import type ClipsPlugin from "./main";
 import { Relater } from "./relate";
-import { clipCard, clipsByMeaning } from "./ui";
+import { clipCard, clipsByMeaning, type CardOptions } from "./ui";
 import type { Clip } from "./model";
 import { fuzzyMatch, plural } from "./text";
 
 export const PANEL_VIEW = "clips-panel";
-const STEP = 5;
 
 export class PanelView extends ItemView {
 	private file: TFile | null = null;
@@ -21,7 +20,7 @@ export class PanelView extends ItemView {
 	private picksFor = "";
 	private showUsed = false;
 	/** How many clips for this note are shown. Starts small so the side bar stays calm. */
-	private shown = STEP;
+	private shown = 0;
 	/** Find by meaning for one search: null while AI looks. */
 	private meaning: { query: string; clips: Clip[] | null } | null = null;
 
@@ -86,7 +85,7 @@ export class PanelView extends ItemView {
 		this.file = f;
 		this.picks = null;
 		this.showUsed = false;
-		this.shown = STEP;
+		this.shown = 0;
 		this.soon(50);
 	}
 
@@ -143,7 +142,7 @@ export class PanelView extends ItemView {
 				.sort((a, b) => (b.m?.score ?? 0) - (a.m?.score ?? 0) || b.c.clipped - a.c.clipped)
 				.slice(0, 60);
 			head.createDiv({ cls: "oc-panel-sub", text: plural(hits.length, "clip") });
-			for (const h of hits) clipCard(body, this.plugin, h.c, { quiet: true, ranges: h.m?.ranges.filter((r) => r[1] <= h.c.text.length) });
+			for (const h of hits) clipCard(body, this.plugin, h.c, { ...this.look(), ranges: h.m?.ranges.filter((r) => r[1] <= h.c.text.length) });
 			const m = this.meaning?.query === query ? this.meaning : null;
 			if (m) {
 				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad", text: "Looking by meaning…" });
@@ -151,7 +150,7 @@ export class PanelView extends ItemView {
 					body.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "Nothing close in meaning either. Try other words." });
 				else {
 					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
-					for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, { quiet: true });
+					for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, this.look());
 				}
 			} else if (!hits.length) {
 				const ai = this.plugin.ai.usable();
@@ -205,7 +204,7 @@ export class PanelView extends ItemView {
 			order = [...this.picks.map((id) => ranked.find((r) => r.id === id)).filter((r): r is (typeof ranked)[number] => !!r), ...ranked.filter((r) => !pickSet.has(r.id))];
 		}
 		const max = Math.min(order.length, this.plugin.settings.panelCount);
-		order = order.slice(0, Math.min(this.shown, max));
+		order = order.slice(0, Math.min(this.shown || this.step, max));
 
 		head.createDiv({ cls: "oc-panel-title", text: "For this note" });
 		head.createDiv({ cls: "oc-panel-sub", text: f.basename });
@@ -219,7 +218,7 @@ export class PanelView extends ItemView {
 				this.showUsed = !this.showUsed;
 				void this.draw();
 			});
-			if (this.showUsed) for (const c of usedHere) clipCard(sec, this.plugin, c, { quiet: true });
+			if (this.showUsed) for (const c of usedHere) clipCard(sec, this.plugin, c, this.look());
 		}
 
 		if (!order.length) {
@@ -227,12 +226,12 @@ export class PanelView extends ItemView {
 		}
 		for (const r of order) {
 			const c = store.byId.get(r.id);
-			if (c) clipCard(body, this.plugin, c, { quiet: true });
+			if (c) clipCard(body, this.plugin, c, this.look(r.why));
 		}
 		if (order.length < max) {
-			const more = body.createEl("button", { cls: "oc-link-btn oc-more", text: `Show ${Math.min(STEP, max - order.length)} more`, attr: { type: "button" } });
+			const more = body.createEl("button", { cls: "oc-link-btn oc-more", text: `Show ${Math.min(this.step, max - order.length)} more`, attr: { type: "button" } });
 			more.addEventListener("click", () => {
-				this.shown += STEP;
+				this.shown = (this.shown || this.step) + this.step;
 				void this.draw();
 			});
 		}
@@ -248,6 +247,19 @@ export class PanelView extends ItemView {
 				void this.draw();
 			});
 		}
+	}
+
+	/** How many clips show at first and with each Show more. */
+	private get step(): number {
+		return Math.max(1, this.plugin.settings.panelFirst || 5);
+	}
+
+	/** Card options for the look picked in Settings. */
+	private look(why?: string[]): CardOptions {
+		const look = this.plugin.settings.panelLook;
+		if (look === "detailed") return { compact: true, why };
+		if (look === "text") return { quiet: true, textOnly: true };
+		return { quiet: true };
 	}
 
 	/** The cursor in the search box, from the command. */

@@ -1,5 +1,14 @@
 # What's new
 
+## 0.6.0 (22 Nov 2026)
+
+**Pick the side bar's look.**
+
+![Calm, Detailed and Text only](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.6.0/docs/media/sidebar-looks.png)
+
+- **Three looks** in **Settings → Clips → Side bar → Look**. Calm: two lines and the source. Detailed: more text, how often it is used, and why it fits. Text only: just the words.
+- **Clips at first**: how many clips show before Show more, from 3 to 20.
+
 ## 0.5.0 (22 Nov 2026)
 
 **A calm side bar.**

@@ -42,6 +42,8 @@ Everything else is in the library's **⋯** menu, the right-click menu in a note
 
 The side bar reads the note you are writing and shows the 5 clips that fit it best. Press **Show 5 more** for more. Each clip is two lines and its source. It does not change while you type: it updates when you stop for a few seconds. Clips you already used in this note are in their own list at the top. Drawings get no clips.
 
+Pick the look in **Settings → Clips → Side bar → Look**: **Calm** (two lines and the source), **Detailed** (more text, uses, and why it fits) or **Text only** (just the words). **Clips at first** sets how many show before Show more.
+
 - Tap the arrow to put a clip in at the cursor.
 - On desktop, drag a clip into the note.
 - Type in the search box to look through all clips.

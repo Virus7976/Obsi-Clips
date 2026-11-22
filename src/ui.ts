@@ -65,6 +65,8 @@ export interface CardOptions {
 	compact?: boolean;
 	/** The calm side bar card: two lines of text and one small source line, actions on hover. */
 	quiet?: boolean;
+	/** Only the words: no source line. */
+	textOnly?: boolean;
 	/** Words that made it match, shown small. */
 	why?: string[];
 	/** Shown instead of the source line, for clips listed inside their own note. */
@@ -96,7 +98,7 @@ export async function clipsByMeaning(plugin: ClipsPlugin, query: string, pool: C
 export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: CardOptions = {}): HTMLElement {
 	const st = plugin.store.state(c.id);
 	const p = c.places[0];
-	const card = parent.createDiv({ cls: "oc-card" + (o.compact || o.quiet ? " is-compact" : "") + (o.quiet ? " is-quiet" : "") + (st.arch ? " is-archived" : "") });
+	const card = parent.createDiv({ cls: "oc-card" + (o.compact || o.quiet ? " is-compact" : "") + (o.quiet ? " is-quiet" : "") + (o.textOnly ? " is-text-only" : "") + (st.arch ? " is-archived" : "") });
 	card.dataset.id = c.id;
 	card.tabIndex = 0;
 	card.setAttr("role", "article");

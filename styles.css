@@ -853,3 +853,7 @@ a.oc-ai-keylink.is-hidden { display: none; }
 .oc-card.is-quiet .oc-meta { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
 .oc-card.is-quiet .oc-src { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
 .oc-card.is-quiet .oc-where { flex: none; }
+
+/* Text only: the words, nothing else. */
+.oc-card.is-text-only .oc-meta { display: none; }
+.oc-card.is-text-only .oc-text { -webkit-line-clamp: 3; }
