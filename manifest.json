@@ -1,0 +1,10 @@
+{
+	"id": "obsi-clips",
+	"name": "Obsi Clips",
+	"version": "0.1.0",
+	"minAppVersion": "1.13.2",
+	"description": "Use your highlights. See the clips that fit the note you are writing, how often each one is used, and bring back the ones you forgot.",
+	"author": "Virus7976",
+	"authorUrl": "https://github.com/Virus7976",
+	"isDesktopOnly": false
+}
