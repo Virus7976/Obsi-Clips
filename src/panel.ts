@@ -154,17 +154,20 @@ export class PanelView extends ItemView {
 				if (near.length) {
 					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
 					for (const n of near) clipCard(body, this.plugin, n.clip, this.look());
-				} else if (meaning.waking) body.createDiv({ cls: "oc-loading oc-pad", text: meaning.state === "getting" ? "Getting the meaning model…" : "Starting meaning search…" });
-				else if (!hits.length) this.deeper(body, query);
+				} else if (meaning.waking) {
+					body.createDiv({ cls: "oc-loading oc-pad", text: meaning.state === "getting" ? "Getting the meaning model…" : "Starting meaning search…" });
+					return;
+				}
+				this.deeper(body, query, new Set([...hits.map((h) => h.c.id), ...near.map((n) => n.clip.id)]));
 				return;
 			}
 			const m = this.meaning?.query === query ? this.meaning : null;
 			if (m) {
-				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad", text: "Looking by meaning…" });
+				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad", text: "AI is looking…" });
 				else if (!m.clips.length)
 					body.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "Nothing close in meaning either. Try other words." });
 				else {
-					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
+					body.createDiv({ cls: "oc-divider", text: "Found by AI" });
 					for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, this.look());
 				}
 			} else if (!hits.length) {
@@ -301,25 +304,33 @@ export class PanelView extends ItemView {
 		void this.draw();
 	}
 
-	/** Nothing found on this device: AI can look deeper, when it is set up. */
-	private deeper(body: HTMLElement, query: string) {
+	/**
+	 * Under the results from this device: AI can look deeper, when it is set up. With nothing found, a box with a
+	 * button. With results, a small link under them. AI's finds go in their own part, without repeats.
+	 */
+	private deeper(body: HTMLElement, query: string, shown: Set<string>) {
 		const m = this.meaning?.query === query ? this.meaning : null;
 		const ai = this.plugin.ai;
+		const none = shown.size === 0;
 		if (m && !m.clips) {
 			body.createDiv({ cls: "oc-loading oc-pad", text: "AI is looking…" });
 			return;
 		}
-		if (m?.clips?.length) {
-			body.createDiv({ cls: "oc-divider", text: "Found by AI" });
-			for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, this.look());
-			return;
-		}
 		if (m) {
-			this.empty("No clips match", ai.lastError ? "AI did not answer. " + ai.lastError : "AI found nothing either. Try other words.", "", () => undefined);
+			const fresh = (m.clips ?? []).filter((c) => !shown.has(c.id));
+			if (fresh.length) {
+				body.createDiv({ cls: "oc-divider", text: "Found by AI" });
+				for (const c of fresh.slice(0, 40)) clipCard(body, this.plugin, c, this.look());
+			} else if (none) this.empty("No clips match", ai.lastError ? "AI did not answer. " + ai.lastError : "AI found nothing either. Try other words.", "", () => undefined);
+			else body.createDiv({ cls: "oc-muted oc-pad", text: ai.lastError ? "AI did not answer. " + ai.lastError : "AI found nothing more." });
 			return;
 		}
-		if (ai.usable()) this.empty("No clips match", "Nothing close in meaning either. AI can look deeper.", "Search deeper with AI", () => void this.findByMeaning(query));
-		else this.empty("No clips match", "Nothing close in meaning either. Try other words.", "", () => undefined);
+		if (!ai.usable()) {
+			if (none) this.empty("No clips match", "Nothing close in meaning either. Try other words.", "", () => undefined);
+			return;
+		}
+		if (none) this.empty("No clips match", "Nothing close in meaning either. AI can look deeper.", "Search deeper with AI", () => void this.findByMeaning(query));
+		else body.createEl("button", { cls: "oc-link-btn oc-more oc-deeper", text: "Search deeper with AI", attr: { type: "button" } }).addEventListener("click", () => void this.findByMeaning(query));
 	}
 
 	private empty(title: string, text: string, button: string, onClick: () => void) {

@@ -1,7 +1,7 @@
 {
 	"id": "clips",
 	"name": "Clips",
-	"version": "0.8.2",
+	"version": "0.8.3",
 	"minAppVersion": "1.13.2",
 	"description": "Use your highlights. See the clips that fit the note you are writing, how often each one is used, and bring back the ones you forgot.",
 	"author": "Virus7976",

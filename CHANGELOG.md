@@ -1,5 +1,15 @@
 # What's new
 
+## 0.8.3 (22 Nov 2026)
+
+**Search deeper with AI, under any search.**
+
+![Search deeper with AI under the results](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.8.3/docs/media/search-deeper-more.png)
+
+- **Search deeper with AI** now shows under the results too, not only when nothing is found. In the side bar and the library.
+- AI's finds show after your results, under **Found by AI**, with no repeats.
+- AI is still asked only when you press it.
+
 ## 0.8.2 (22 Nov 2026)
 
 **Search deeper with AI.**

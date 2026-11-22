@@ -23,6 +23,8 @@ export class LibraryView extends ItemView {
 	private selectBar!: HTMLElement;
 	private hits: Hit[] = [];
 	private extra: Hit[] = [];
+	/** What AI found when asked to search deeper, after the results from this device. */
+	private deep: Hit[] = [];
 	private shown = 0;
 	private selecting = false;
 	private selected = new Set<string>();
@@ -162,8 +164,9 @@ export class LibraryView extends ItemView {
 		const store = this.plugin.store;
 		this.hits = runQuery(store.clips, this.plugin.data.clips, this.q);
 		const words = splitSearch(this.q.text).words.trim();
-		if (words !== this.meaningFor) {
+		if (words !== this.meaningFor && words !== this.deepFor) {
 			this.extra = [];
+			this.deep = [];
 			this.deepFor = "";
 		}
 		// Meaning search on this device is fast, so it runs before the list is drawn.
@@ -206,7 +209,9 @@ export class LibraryView extends ItemView {
 		if (splitSearch(this.q.text).words.trim() !== words) return;
 		this.meaningFor = words;
 		if (!extraWords.length) return;
-		const have = new Set(this.hits.map((h) => h.clip.id));
+		// Searching deeper keeps the results from this device and adds AI's finds after them.
+		const deep = this.deepFor === words;
+		const have = new Set([...this.hits.map((h) => h.clip.id), ...(deep ? this.extra.map((h) => h.clip.id) : [])]);
 		const base = runQuery(this.plugin.store.clips, this.plugin.data.clips, { ...this.q, text: this.q.text.replace(words, "").trim() });
 		const out: Hit[] = [];
 		for (const h of base) {
@@ -224,8 +229,9 @@ export class LibraryView extends ItemView {
 			const seen = new Set([...have, ...out.map((h) => h.clip.id)]);
 			for (const n of this.plugin.meaning.near(extraWords.join(" "), base.map((h) => h.clip), seen, 40)) out.push({ clip: n.clip, score: n.sim, ranges: [] });
 		}
-		this.extra = out.slice(0, 40);
-		if (this.extra.length) this.draw();
+		if (deep) this.deep = out.slice(0, 40);
+		else this.extra = out.slice(0, 40);
+		this.draw();
 	}
 
 	private drawHead() {
@@ -322,7 +328,7 @@ export class LibraryView extends ItemView {
 		this.shown = 0;
 		const store = this.plugin.store;
 		const total = this.hits.length;
-		this.countEl.setText(store.ready ? (total === 0 && !this.extra.length ? "" : plural(total, "clip")) : "");
+		this.countEl.setText(store.ready ? (total === 0 && !this.extra.length && !this.deep.length ? "" : plural(total, "clip")) : "");
 
 		if (this.plugin.store.needsFolders) {
 			this.empty("No clip folders yet", "Pick the folders that hold your clips.", "Set up", () => this.plugin.openSetup());
@@ -337,7 +343,7 @@ export class LibraryView extends ItemView {
 			return;
 		}
 		const words = splitSearch(this.q.text).words.trim();
-		if (!total && !this.extra.length && words && !filterCount(this.q)) {
+		if (!total && !this.extra.length && !this.deep.length && words && !filterCount(this.q)) {
 			const clear = () => {
 				this.searchEl.value = "";
 				this.setQuery({ ...clearFilters(), text: "" });
@@ -369,7 +375,7 @@ export class LibraryView extends ItemView {
 			);
 			return;
 		}
-		if (!total && !this.extra.length) {
+		if (!total && !this.extra.length && !this.deep.length) {
 			this.empty("No clips match", filterCount(this.q) ? "Try fewer filters." : "Try other words.", filterCount(this.q) || this.q.text ? "Clear search and filters" : "", () => {
 				this.searchEl.value = "";
 				this.setQuery({ ...clearFilters(), text: "" });
@@ -409,6 +415,18 @@ export class LibraryView extends ItemView {
 				queue.push(() => list.createDiv({ cls: "oc-divider", text: "Loose matches" }));
 				for (const h of loose) queue.push(() => this.card(list, h));
 			}
+		}
+		if (this.deep.length) {
+			queue.push(() => list.createDiv({ cls: "oc-divider", text: "Found by AI" }));
+			for (const h of this.deep) queue.push(() => this.card(list, h));
+		}
+		// Under the results: AI can look deeper, when it is set up and has not looked already.
+		const aiLooked = this.plugin.settings.ai.meaning && !this.plugin.meaning.usable("search");
+		if (words && this.plugin.ai.usable() && !aiLooked) {
+			if (this.meaningLooking === words) queue.push(() => list.createDiv({ cls: "oc-muted oc-pad", text: "AI is looking…" }));
+			else if (this.deepFor !== words)
+				queue.push(() => list.createEl("button", { cls: "oc-link-btn oc-deeper", text: "Search deeper with AI", attr: { type: "button" } }).addEventListener("click", () => void this.findByMeaning(words)));
+			else if (!this.deep.length) queue.push(() => list.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "AI found nothing more." }));
 		}
 		const more = () => {
 			const until = Math.min(queue.length, this.shown + PAGE);

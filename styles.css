@@ -849,6 +849,7 @@ a.oc-ai-keylink.is-hidden { display: none; }
 .oc-card.is-quiet .oc-src-icon { display: none; }
 .oc-panel .oc-card.is-quiet + .oc-card.is-quiet { margin-top: 2px; }
 .oc-panel button.oc-more { align-self: flex-start; margin: var(--size-4-2) var(--size-4-2); }
+.oc-library button.oc-deeper { display: block; margin: var(--size-4-3) auto var(--size-4-4); }
 .is-mobile .oc-card.is-quiet:not(.is-open) .oc-actions { display: none; }
 .oc-card.is-quiet .oc-meta { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
 .oc-card.is-quiet .oc-src { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
