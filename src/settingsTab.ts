@@ -1,5 +1,5 @@
 import { Notice, PluginSettingTab, type App, type SettingDefinition, type SettingDefinitionItem } from "obsidian";
-import type ObsiClips from "./main";
+import type ClipsPlugin from "./main";
 import { FolderPicker } from "./ui";
 import { PROVIDERS } from "./settings";
 import { plural } from "./text";
@@ -9,7 +9,7 @@ type Obj = Record<string, unknown>;
 export class ClipsSettingTab extends PluginSettingTab {
 	constructor(
 		app: App,
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 	) {
 		super(app, plugin);
 	}
@@ -40,7 +40,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 				type: "group",
 				items: [
 					{ name: "Open the library", desc: "Every clip, with search, sort and filters.", action: () => this.plugin.openLibrary() },
-					{ name: "Review today's clips", desc: "A few clips you have not used yet.", action: () => this.plugin.openReview() },
+					{ name: "Review clips", desc: "A few clips you have not used yet. When today's are done, a few more.", action: () => this.plugin.openReview(true) },
 					{ name: "Tidy clips", desc: "Clips saved twice, near copies, clips with no tags, broken links.", action: () => this.plugin.openTidy() },
 					{ name: "What's new", desc: "What changed in each version.", action: () => void this.plugin.openWhatsNew() },
 				],
@@ -182,34 +182,22 @@ export class ClipsSettingTab extends PluginSettingTab {
 				items: [
 					{
 						type: "page",
-						name: "AI service",
+						name: "AI",
 						desc: "Optional. Finds clips close in meaning and suggests tags. Off by default.",
-						displayValue: () => (ai.usable() ? PROVIDERS[s.ai.provider].name : s.ai.on ? "Not ready" : "Off"),
+						displayValue: () => (ai.usable() ? aiLabel(this.plugin) : s.ai.on ? "Not ready" : "Off"),
 						status: () => (s.ai.on && !ai.usable() ? "warning" : null),
 						items: [
 							{
 								type: "group",
 								items: [
-									toggle("Use an AI service", "It never writes text for you. It only helps find your own clips and suggests tags. Only short pieces of text are sent.", "ai.on"),
 									{
-										name: "Service",
-										desc: "OpenRouter has many models with one key. Ollama runs on this computer.",
-										control: { type: "dropdown", key: "ai.provider", options: Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.name])) },
-										visible: () => s.ai.on,
-									},
-									{ name: "Address", desc: "The service's OpenAI-style address.", control: { type: "text", key: "ai.baseUrl", placeholder: "https://…/v1" }, visible: () => s.ai.on },
-									{ name: "Model", desc: "A small fast model is enough.", control: { type: "text", key: "ai.model", placeholder: PROVIDERS[s.ai.provider].model || "model name" }, visible: () => s.ai.on },
-									{
-										name: "Key",
-										desc: "Kept in Obsidian's key store on this device, never in the plugin's settings file.",
-										control: { type: "secret", key: "ai.keyName" },
-										visible: () => s.ai.on && PROVIDERS[s.ai.provider].key,
+										name: s.ai.baseUrl ? "Change the AI" : "Set up AI",
+										desc: ai.lastError && s.ai.on ? "Last problem: " + ai.lastError : s.ai.baseUrl ? "Now: " + aiLabel(this.plugin) + "." : "Pick a model on this device, or a service with a key.",
+										action: () => this.plugin.openAiSetup(),
 									},
 									{
-										name: "Test",
-										desc: ai.lastError ? "Last problem: " + ai.lastError : "Send a tiny request to check it works.",
-										action: () => void this.test(),
-										visible: () => s.ai.on,
+										...toggle("Use AI", "It never writes text for you. It only helps find your own clips and suggests tags.", "ai.on"),
+										visible: () => !!s.ai.baseUrl,
 									},
 									{ ...toggle("Find by meaning", "Search and the side bar also find clips close in meaning, not only the same words.", "ai.meaning"), visible: () => s.ai.on },
 									{
@@ -217,6 +205,12 @@ export class ClipsSettingTab extends PluginSettingTab {
 										desc: "When I tap: ideas show in Edit tags. By themselves: new clips with no tags get tags in the background.",
 										control: { type: "dropdown", key: "ai.tags", options: { tap: "When I tap", auto: "By themselves" } },
 										visible: () => s.ai.on,
+									},
+									{
+										name: "Remove AI from this device",
+										desc: "Turns AI off and deletes its key and phone link from Obsidian's key store.",
+										action: () => this.plugin.forgetAi(),
+										visible: () => s.ai.on || !!ai.savedKey(),
 									},
 								],
 							},
@@ -227,28 +221,12 @@ export class ClipsSettingTab extends PluginSettingTab {
 			},
 		];
 	}
-
-	private async test() {
-		const ai = this.plugin.ai;
-		if (!this.plugin.settings.ai.on) {
-			new Notice("Turn on the AI service first.");
-			return;
-		}
-		if (!ai.usable()) {
-			new Notice("Add the address, the model and the key first.");
-			return;
-		}
-		const answer = await ai.ask("Answer with the single word: ready", "Are you there?", 5);
-		new Notice(answer ? "The AI service works." : "It did not work. " + (ai.lastError || ""), 6000);
-		this.update();
-	}
 }
 
-/** When the service changes, fill in its address and a good model. */
-export function providerChanged(plugin: ObsiClips) {
-	const s = plugin.settings.ai;
-	const p = PROVIDERS[s.provider];
-	if (!p) return;
-	if (p.url) s.baseUrl = p.url;
-	if (p.model) s.model = p.model;
+/** "llama3.2:3b in Ollama", "ObsiTube on this phone", "gpt-4.1-mini on OpenAI". */
+export function aiLabel(plugin: ClipsPlugin): string {
+	const a = plugin.settings.ai;
+	if (a.provider === "phone") return `${a.app || "Obsi app"} on this phone`;
+	if (a.provider === "local") return `${a.model} in ${a.app || "a model app"}`;
+	return `${a.model} on ${a.app || PROVIDERS[a.provider].name}`;
 }

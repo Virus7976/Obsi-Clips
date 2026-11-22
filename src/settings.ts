@@ -1,11 +1,16 @@
 import { EMPTY_QUERY, type ClipState, type Query } from "./model";
 
 export type InsertFormat = "quote" | "embed" | "plain";
-export type AiProvider = "openrouter" | "openai" | "groq" | "ollama" | "custom";
+/** Where AI runs: a service with a key, a model app on this device, or the model in an Obsi app on this phone. */
+export type AiProvider =
+	| "openrouter" | "anthropic" | "openai" | "gemini" | "groq" | "mistral" | "deepseek" | "xai" | "custom"
+	| "local" | "network" | "phone";
 
 export interface AiSettings {
 	on: boolean;
 	provider: AiProvider;
+	/** The app that runs a local model, like "Ollama" or "ObsiTube", for Settings to show. */
+	app: string;
 	baseUrl: string;
 	model: string;
 	/** The name of the key in Obsidian's key store. The key itself is never in data.json. */
@@ -72,21 +77,49 @@ export const DEFAULT_SETTINGS: Settings = {
 	ai: {
 		on: false,
 		provider: "openrouter",
+		app: "",
 		baseUrl: "https://openrouter.ai/api/v1",
 		model: "google/gemini-2.5-flash-lite",
-		keyName: "obsi-clips-ai",
+		keyName: "clips-ai",
 		meaning: true,
 		tags: "tap",
 	},
 };
 
-export const PROVIDERS: Record<AiProvider, { name: string; url: string; model: string; key: boolean }> = {
-	openrouter: { name: "OpenRouter", url: "https://openrouter.ai/api/v1", model: "google/gemini-2.5-flash-lite", key: true },
-	openai: { name: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4.1-mini", key: true },
-	groq: { name: "Groq", url: "https://api.groq.com/openai/v1", model: "llama-3.1-8b-instant", key: true },
-	ollama: { name: "Ollama (on this computer)", url: "http://localhost:11434/v1", model: "llama3.2", key: false },
-	custom: { name: "Other (OpenAI-style)", url: "", model: "", key: true },
+export interface Provider {
+	name: string;
+	url: string;
+	/** A small, fast model that is enough for these short jobs. */
+	model: string;
+	key: boolean;
+	/** Where to get a key. */
+	keyPage?: string;
+	/** How the key looks, to catch a key pasted into the wrong service. */
+	keyHint?: RegExp;
+	/** "anthropic" uses Anthropic's own way to ask. All others use the OpenAI way. */
+	style?: "anthropic";
+}
+
+export const PROVIDERS: Record<AiProvider, Provider> = {
+	openrouter: { name: "OpenRouter", url: "https://openrouter.ai/api/v1", model: "google/gemini-2.5-flash-lite", key: true, keyPage: "https://openrouter.ai/keys", keyHint: /^sk-or-/ },
+	anthropic: { name: "Anthropic", url: "https://api.anthropic.com/v1", model: "claude-haiku-5-5", key: true, keyPage: "https://console.anthropic.com/settings/keys", keyHint: /^sk-ant-/, style: "anthropic" },
+	openai: { name: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4.1-mini", key: true, keyPage: "https://platform.openai.com/api-keys", keyHint: /^sk-(?!or-|ant-)/ },
+	gemini: { name: "Google Gemini", url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash-lite", key: true, keyPage: "https://aistudio.google.com/apikey", keyHint: /^AIza/ },
+	groq: { name: "Groq", url: "https://api.groq.com/openai/v1", model: "llama-3.1-8b-instant", key: true, keyPage: "https://console.groq.com/keys", keyHint: /^gsk_/ },
+	mistral: { name: "Mistral", url: "https://api.mistral.ai/v1", model: "mistral-small-latest", key: true, keyPage: "https://console.mistral.ai/api-keys" },
+	deepseek: { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat", key: true, keyPage: "https://platform.deepseek.com/api_keys", keyHint: /^sk-/ },
+	xai: { name: "xAI", url: "https://api.x.ai/v1", model: "grok-3-mini", key: true, keyPage: "https://console.x.ai", keyHint: /^xai-/ },
+	custom: { name: "Other service", url: "", model: "", key: true },
+	local: { name: "On this device", url: "", model: "", key: false },
+	network: { name: "On your network", url: "", model: "", key: false },
+	phone: { name: "Obsi app on this phone", url: "", model: "phone", key: false },
 };
+
+/** The services with a key, for the setup list. */
+export const SERVICES: AiProvider[] = ["openrouter", "anthropic", "openai", "gemini", "groq", "mistral", "deepseek", "xai", "custom"];
+
+/** Where the link token for an Obsi app on the phone is kept in Obsidian's key store. */
+export const PHONE_SECRET = "clips-phone";
 
 export interface PluginData {
 	settings: Settings;
@@ -116,7 +149,7 @@ export function mergeData(raw: unknown): PluginData {
 			...DEFAULT_SETTINGS,
 			...s,
 			query: { ...EMPTY_QUERY, ...(s.query ?? {}) },
-			ai: { ...DEFAULT_SETTINGS.ai, ...(s.ai ?? {}) },
+			ai: aiFrom(s.ai),
 		},
 		clips: d.clips ?? {},
 		daily: { ...EMPTY_DATA.daily, ...(d.daily ?? {}) },
@@ -124,4 +157,15 @@ export function mergeData(raw: unknown): PluginData {
 		welcomed: d.welcomed ?? false,
 		memo: { ...EMPTY_DATA.memo, ...(d.memo ?? {}) },
 	};
+}
+
+/** Saved AI settings, with 0.1.0's "ollama" service read as a model on this device. */
+function aiFrom(raw: unknown): AiSettings {
+	const a = { ...DEFAULT_SETTINGS.ai, ...((raw ?? {}) as Partial<AiSettings>) };
+	if ((a.provider as string) === "ollama") {
+		a.provider = "local";
+		a.app = a.app || "Ollama";
+	}
+	if (!(a.provider in PROVIDERS)) a.provider = "openrouter";
+	return a;
 }

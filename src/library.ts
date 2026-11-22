@@ -1,11 +1,11 @@
 // The clip library: every clip, with search, sort (and reverse), filters, groups and select-many.
 import { ItemView, Menu, Modal, Notice, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
-import type ObsiClips from "./main";
+import type ClipsPlugin from "./main";
 import { COLORS, GROUPS, KINDS, SORTS, filterCount, groupHits, runQuery, splitSearch, type Clip, type Hit, type Query } from "./model";
 import { clipCard, iconButton, kindName, ListPicker, TagsModal } from "./ui";
 import { fuzzyMatch, plural } from "./text";
 
-export const LIBRARY_VIEW = "obsi-clips-library";
+export const LIBRARY_VIEW = "clips-library";
 const PAGE = 60;
 
 export class LibraryView extends ItemView {
@@ -33,7 +33,7 @@ export class LibraryView extends ItemView {
 
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 	) {
 		super(leaf);
 		this.q = { ...plugin.settings.query };
@@ -385,6 +385,11 @@ export class LibraryView extends ItemView {
 		}
 	}
 
+	focusSearch() {
+		this.searchEl.focus();
+		this.searchEl.select();
+	}
+
 	private sortMenu(e: MouseEvent) {
 		const m = new Menu();
 		const searching = !!splitSearch(this.q.text).words;
@@ -448,7 +453,7 @@ export class LibraryView extends ItemView {
 	private moreMenu(e: MouseEvent) {
 		const m = new Menu();
 		m.addItem((i) => i.setTitle(this.selecting ? "Stop selecting" : "Select clips").setIcon("check-square").onClick(() => this.toggleSelect()));
-		m.addItem((i) => i.setTitle("Review today's clips").setIcon("calendar-check").onClick(() => this.plugin.openReview()));
+		m.addItem((i) => i.setTitle("Review clips").setIcon("calendar-check").onClick(() => this.plugin.openReview(true)));
 		m.addItem((i) => i.setTitle("Tidy clips").setIcon("wand").onClick(() => this.plugin.openTidy()));
 		m.addSeparator();
 		m.addItem((i) => i.setTitle("Count uses again").setIcon("refresh-cw").onClick(() => void this.plugin.store.rebuild()));
@@ -518,7 +523,7 @@ export class FilterModal extends Modal {
 	private q: Query;
 
 	constructor(
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 		q: Query,
 		private apply: (q: Query) => void,
 	) {

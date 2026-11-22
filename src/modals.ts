@@ -1,6 +1,6 @@
 // Review, Tidy, the quick clip search, and first-time setup.
 import { Modal, Notice, Platform, SuggestModal, setIcon, type App } from "obsidian";
-import type ObsiClips from "./main";
+import type ClipsPlugin from "./main";
 import { nearCopies } from "./match";
 import { keepLater, KEEP_STEPS, runQuery, EMPTY_QUERY, type Clip, type Hit } from "./model";
 import { parseClips } from "./parse";
@@ -20,7 +20,7 @@ export class ReviewModal extends Modal {
 	private ids: string[] = [];
 	private tally = { used: 0, kept: 0, archived: 0 };
 
-	constructor(private plugin: ObsiClips) {
+	constructor(private plugin: ClipsPlugin) {
 		super(plugin.app);
 	}
 
@@ -153,9 +153,9 @@ export class ReviewModal extends Modal {
  */
 export class ClipSuggest extends SuggestModal<Hit> {
 	constructor(
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 		private onPick?: (c: Clip, how: "quote" | "embed" | "copy") => void,
-		initial = "",
+		private initial = "",
 	) {
 		super(plugin.app);
 		this.modalEl.addClass("oc-suggest");
@@ -168,7 +168,26 @@ export class ClipSuggest extends SuggestModal<Hit> {
 		]);
 		this.scope.register(["Shift"], "Enter", (e) => this.pickWith(e, "embed"));
 		this.scope.register(["Mod"], "Enter", (e) => this.pickWith(e, "copy"));
-		if (initial) this.inputEl.value = initial;
+		// With no search, the clips that fit the open note come first.
+		const f = plugin.target.file();
+		if (f) {
+			void plugin.rankForNote(f).then((ids) => {
+				this.forNote = ids;
+				if (!this.inputEl.value.trim()) this.inputEl.dispatchEvent(new Event("input"));
+			});
+		}
+	}
+
+	private forNote: string[] = [];
+
+	onOpen() {
+		void super.onOpen();
+		// Set after opening: opening clears the box.
+		if (this.initial) {
+			this.inputEl.value = this.initial;
+			this.inputEl.select();
+			this.inputEl.dispatchEvent(new Event("input"));
+		}
 	}
 
 	private pickWith(e: KeyboardEvent, how: "embed" | "copy") {
@@ -191,8 +210,14 @@ export class ClipSuggest extends SuggestModal<Hit> {
 		const q = { ...EMPTY_QUERY, text: query, sort: query.trim() ? ("relevance" as const) : ("lastUsed" as const) };
 		const hits = runQuery(this.plugin.store.clips, this.plugin.data.clips, q);
 		if (!query.trim()) {
-			// With no search: clips used lately first, then the newest.
-			hits.sort((a, b) => (b.clip.uses[0]?.since ?? 0) - (a.clip.uses[0]?.since ?? 0) || b.clip.clipped - a.clip.clipped);
+			// With no search: the clips that fit this note, then clips used lately, then the newest.
+			const rank = new Map(this.forNote.map((id, i) => [id, i]));
+			hits.sort(
+				(a, b) =>
+					(rank.get(a.clip.id) ?? 1e9) - (rank.get(b.clip.id) ?? 1e9) ||
+					(b.clip.uses[0]?.since ?? 0) - (a.clip.uses[0]?.since ?? 0) ||
+					b.clip.clipped - a.clip.clipped,
+			);
 		}
 		return hits.slice(0, this.limit);
 	}
@@ -224,7 +249,7 @@ type TidyTab = "same" | "near" | "untagged" | "broken";
 export class TidyModal extends Modal {
 	private tab: TidyTab = "same";
 
-	constructor(private plugin: ObsiClips) {
+	constructor(private plugin: ClipsPlugin) {
 		super(plugin.app);
 	}
 
@@ -402,13 +427,13 @@ export async function guessFolders(app: App): Promise<FolderGuess[]> {
 export class SetupModal extends Modal {
 	private guesses: FolderGuess[] | null = null;
 
-	constructor(private plugin: ObsiClips) {
+	constructor(private plugin: ClipsPlugin) {
 		super(plugin.app);
 	}
 
 	onOpen() {
 		this.modalEl.addClass("oc-modal", "oc-setup");
-		this.setTitle("Obsi Clips");
+		this.setTitle("Clips");
 		this.draw();
 		void guessFolders(this.app).then((g) => {
 			const have = this.plugin.settings.folders;

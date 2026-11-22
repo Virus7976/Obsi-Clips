@@ -2,9 +2,13 @@
 // Off until set up. Every call sends little text, asks for a short answer, and the answer is kept.
 import { requestUrl, type App } from "obsidian";
 import { clip as cut, hashId } from "./text";
-import { PROVIDERS, type PluginData } from "./settings";
+import { addressProblem } from "./safety";
+import { PHONE_SECRET, PROVIDERS, type AiSettings, type PluginData } from "./settings";
 
 const MAX_MEMO = 400;
+
+/** What one call needs: where it goes and which model. */
+export type AiTarget = Pick<AiSettings, "provider" | "app" | "baseUrl" | "model">;
 
 export class Ai {
 	/** Set when the last call failed, for Settings to explain. Never shown in place of results. */
@@ -21,7 +25,19 @@ export class Ai {
 		return this.data().settings.ai;
 	}
 
+	/** The key for a service, or the link token for an Obsi app on the phone. Never kept in data.json. */
 	key(): string {
+		const id = this.s.provider === "phone" ? PHONE_SECRET : PROVIDERS[this.s.provider]?.key ? this.s.keyName : "";
+		if (!id) return "";
+		try {
+			return this.app.secretStorage.getSecret(id) ?? "";
+		} catch {
+			return "";
+		}
+	}
+
+	/** The saved key for a service, whatever is in use now. */
+	savedKey(): string {
 		try {
 			return this.app.secretStorage.getSecret(this.s.keyName) ?? "";
 		} catch {
@@ -29,54 +45,144 @@ export class Ai {
 		}
 	}
 
-	/** Ready to use: turned on, an address and a model, and a key when the service needs one. */
+	/** Ready to use: turned on, a safe address, a model, and a key or link when it needs one. */
 	usable(): boolean {
 		const s = this.s;
 		if (!s.on || !s.baseUrl.trim() || !s.model.trim()) return false;
-		return PROVIDERS[s.provider]?.key === false || this.key() !== "";
+		const key = this.key();
+		const needsKey = PROVIDERS[s.provider]?.key !== false || s.provider === "phone";
+		if (needsKey && !key) return false;
+		return addressProblem(s.baseUrl, key !== "") === null;
 	}
 
-	/** One chat call. Returns the answer text, or "" on any failure. */
+	/** One chat call with the saved setup. Returns the answer text, or "" on any failure. */
 	async ask(system: string, user: string, maxTokens: number): Promise<string> {
 		if (!this.usable()) return "";
-		const s = this.s;
-		const headers: Record<string, string> = { "Content-Type": "application/json" };
-		const key = this.key();
-		if (key) headers.Authorization = `Bearer ${key}`;
+		return this.call(this.s, this.key(), system, user, maxTokens);
+	}
+
+	/**
+	 * Tries a setup before it is saved. Returns null when it answers, else the reason in plain words.
+	 * Setup only saves a choice that has passed this.
+	 */
+	async check(cfg: AiTarget, key: string): Promise<string | null> {
+		const answer = await this.call(cfg, key, "Answer with the single word: ready", "Are you there?", 8);
+		return answer ? null : this.lastError || "No answer came back.";
+	}
+
+	/** The headers for a service: its key, and what OpenRouter asks for. */
+	private headers(s: AiTarget, key: string): Record<string, string> {
+		const h: Record<string, string> = { "Content-Type": "application/json" };
+		if (PROVIDERS[s.provider]?.style === "anthropic") {
+			if (key) h["x-api-key"] = key;
+			h["anthropic-version"] = "2023-06-01";
+		} else if (key) h.Authorization = `Bearer ${key}`;
 		if (s.provider === "openrouter") {
-			headers["HTTP-Referer"] = "https://github.com/Virus7976/Obsi-Clips";
-			headers["X-Title"] = "Obsi Clips";
+			h["HTTP-Referer"] = "https://github.com/Virus7976/Obsi-Clips";
+			h["X-Title"] = "Clips";
 		}
+		return h;
+	}
+
+	private async call(s: AiTarget, key: string, system: string, user: string, maxTokens: number): Promise<string> {
+		// Checked again at each call: a key never goes to an address that could be read on the way.
+		const problem = addressProblem(s.baseUrl, key !== "");
+		if (problem) {
+			this.lastError = problem;
+			return "";
+		}
+		const anthropic = PROVIDERS[s.provider]?.style === "anthropic";
+		const base = s.baseUrl.replace(/\/+$/, "");
+		const own = s.provider === "local" || s.provider === "network";
 		try {
 			const res = await requestUrl({
-				url: s.baseUrl.replace(/\/+$/, "") + "/chat/completions",
+				url: base + (anthropic ? "/messages" : "/chat/completions"),
 				method: "POST",
-				headers,
-				body: JSON.stringify({
-					model: s.model,
-					temperature: 0.2,
-					max_tokens: maxTokens,
-					messages: [
-						{ role: "system", content: system },
-						{ role: "user", content: user },
-					],
-				}),
+				headers: this.headers(s, key),
+				body: JSON.stringify(
+					anthropic
+						? { model: s.model, max_tokens: maxTokens, temperature: 0.2, system, messages: [{ role: "user", content: user }] }
+						: {
+								model: s.model,
+								temperature: 0.2,
+								max_tokens: maxTokens,
+								// Thinking models in Ollama (like qwen3) would spend every token thinking. These jobs are small.
+								...(own ? { reasoning_effort: "none" } : {}),
+								messages: [
+									{ role: "system", content: system },
+									{ role: "user", content: user },
+								],
+							},
+				),
 				throw: false,
 			});
-			if (res.status >= 400) {
-				const msg = (res.json as { error?: { message?: string } } | null)?.error?.message;
-				this.lastError = `The service said ${res.status}${msg ? ": " + msg : ""}`;
+			if (res.status === 401 && s.provider === "phone") {
+				this.lastError = `The link to ${s.app || "the Obsi app"} has ended. Set up AI again to link it.`;
 				return "";
 			}
-			const text = (res.json as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? "";
-			this.lastError = "";
-			return text.trim();
+			let json: unknown = null;
+			try {
+				json = res.json as unknown;
+			} catch {
+				json = null;
+			}
+			if (res.status === 401 || res.status === 403) {
+				this.lastError = own ? `${s.app || "The model app"} asked for a key.` : "The key was not accepted.";
+				return "";
+			}
+			if (res.status >= 400) {
+				const msg = (json as { error?: { message?: string } | string } | null)?.error;
+				const text = typeof msg === "string" ? msg : msg?.message;
+				this.lastError = `The service said ${res.status}${text ? ": " + text.slice(0, 160) : ""}`;
+				return "";
+			}
+			const text = anthropic
+				? ((json as { content?: { type?: string; text?: string }[] } | null)?.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("")
+				: ((json as { choices?: { message?: { content?: string } }[] } | null)?.choices?.[0]?.message?.content ?? "");
+			// Some models write their thinking into the answer: keep only what comes after it.
+			const answer = text.replace(/<think>[\s\S]*?(<\/think>|$)/gi, "").trim();
+			this.lastError = answer ? "" : "This model gave no answer. A small model that does not think first works best.";
+			return answer;
 		} catch (e) {
-			this.lastError = e instanceof Error ? e.message : "Could not reach the service";
+			this.lastError =
+				s.provider === "phone"
+					? `${s.app || "The Obsi app"} is not lending its model right now. Open it once to start.`
+					: own
+						? `${s.app || "The model app"} is not running${s.provider === "network" ? " on that computer, or it does not let other computers in" : ""}.`
+						: e instanceof Error
+							? e.message
+							: "Could not reach the service";
 			return "";
 		}
 	}
 
+	/**
+	 * The models a service offers, best for these jobs first: small and fast, and never one that thinks first.
+	 * Returns null with lastError set when the list could not be read.
+	 */
+	async listModels(s: AiTarget, key: string): Promise<ServiceModel[] | null> {
+		const problem = addressProblem(s.baseUrl, key !== "");
+		if (problem) {
+			this.lastError = problem;
+			return null;
+		}
+		try {
+			const res = await requestUrl({ url: s.baseUrl.replace(/\/+$/, "") + "/models", method: "GET", headers: this.headers(s, key), throw: false });
+			if (res.status === 401 || res.status === 403) {
+				this.lastError = "The key was not accepted.";
+				return null;
+			}
+			if (res.status >= 400) {
+				this.lastError = `The service said ${res.status}`;
+				return null;
+			}
+			const raw = (res.json as { data?: unknown[]; models?: unknown[] } | null) ?? {};
+			return rankModels(s.provider, (raw.data ?? raw.models ?? []) as RawModel[]);
+		} catch (e) {
+			this.lastError = e instanceof Error ? e.message : "Could not reach the service";
+			return null;
+		}
+	}
 	/** Asks and reads one JSON object out of the answer. */
 	private async askJson<T>(system: string, user: string, maxTokens: number): Promise<T | null> {
 		const text = await this.ask(system, user, maxTokens);
@@ -218,4 +324,50 @@ export function keepTags(ideas: string[], theirs: string[], text: string): strin
 		if (out.length >= 5) break;
 	}
 	return out;
+}
+
+export interface ServiceModel {
+	id: string;
+	/** Price or a short note, for the picker. */
+	hint: string;
+	/** Thinks before it answers: slower, and uses many more tokens. */
+	thinks: boolean;
+}
+
+interface RawModel {
+	id?: string;
+	name?: string;
+	pricing?: { prompt?: string; completion?: string };
+	architecture?: { output_modalities?: string[] };
+	supported_parameters?: string[];
+}
+
+const THINKS = /(^|[/-])(o\d|r1|qwq)\b|think|reason/i;
+const NOT_TEXT = /embed|whisper|tts|dall-e|image|audio|realtime|moderation|transcribe|search|vision-preview|guard|rerank|veo|imagen|aqa/i;
+const SMALL = /mini|nano|lite|flash|haiku|small|8b|instant|tiny|3b|1b|ministral|chat$/i;
+
+/** Text models only, the small fast ones first, models that think first last. */
+export function rankModels(provider: string, list: RawModel[]): ServiceModel[] {
+	const out: (ServiceModel & { score: number; price: number })[] = [];
+	const seen = new Set<string>();
+	for (const m of list) {
+		const id = (m.id ?? m.name ?? "").replace(/^models\//, "");
+		if (!id || seen.has(id) || NOT_TEXT.test(id)) continue;
+		if (m.architecture?.output_modalities && !m.architecture.output_modalities.includes("text")) continue;
+		seen.add(id);
+		const thinks = THINKS.test(id);
+		const inP = parseFloat(m.pricing?.prompt ?? "");
+		const outP = parseFloat(m.pricing?.completion ?? "");
+		const price = isFinite(inP) && isFinite(outP) ? inP + outP : NaN;
+		const hint = isFinite(price)
+			? price === 0
+				? "free"
+				: `$${(inP * 1e6).toFixed(2)} / $${(outP * 1e6).toFixed(2)} per 1M tokens`
+			: "";
+		const score = (thinks ? 100 : 0) + (SMALL.test(id) ? 0 : 10);
+		out.push({ id, hint: thinks ? (hint ? hint + " · thinks first, uses more" : "thinks first, uses more") : hint, thinks, score, price: isFinite(price) && price > 0 ? price : 1 });
+	}
+	return out
+		.sort((a, b) => a.score - b.score || a.price - b.price || a.id.localeCompare(b.id))
+		.map(({ id, hint, thinks }) => ({ id, hint, thinks }));
 }

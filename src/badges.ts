@@ -1,8 +1,8 @@
 // "Used 3×" after each used clip, inside the clip notes themselves: in the editor and in reading view.
-import { RangeSetBuilder, StateEffect, type Extension } from "@codemirror/state";
+import { StateEffect, type Extension, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { editorInfoField, MarkdownView, type MarkdownPostProcessorContext } from "obsidian";
-import type ObsiClips from "./main";
+import { editorInfoField, editorLivePreviewField, MarkdownView, type MarkdownPostProcessorContext } from "obsidian";
+import type ClipsPlugin from "./main";
 import type { Clip } from "./model";
 import { UsesModal } from "./ui";
 
@@ -11,7 +11,7 @@ export const refreshBadges = StateEffect.define<null>();
 
 class UsedWidget extends WidgetType {
 	constructor(
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 		private clip: Clip,
 	) {
 		super();
@@ -37,7 +37,7 @@ class UsedWidget extends WidgetType {
 	}
 }
 
-export function badgeExtension(plugin: ObsiClips): Extension {
+export function badgeExtension(plugin: ClipsPlugin): Extension {
 	return ViewPlugin.fromClass(
 		class {
 			decorations: DecorationSet;
@@ -45,17 +45,26 @@ export function badgeExtension(plugin: ObsiClips): Extension {
 				this.decorations = this.build(view);
 			}
 			update(u: ViewUpdate) {
-				if (u.docChanged || u.viewportChanged || u.transactions.some((t) => t.effects.some((e) => e.is(refreshBadges)))) this.decorations = this.build(u.view);
+				if (u.docChanged || u.viewportChanged || u.selectionSet || u.transactions.some((t) => t.effects.some((e) => e.is(refreshBadges)))) this.decorations = this.build(u.view);
 			}
 			build(view: EditorView): DecorationSet {
-				const b = new RangeSetBuilder<Decoration>();
-				if (!plugin.settings.badges) return b.finish();
-				const path = view.state.field(editorInfoField, false)?.file?.path;
-				const clips = path ? plugin.store.byPath.get(path) : undefined;
-				if (!path || !clips?.length) return b.finish();
+				const out: Range<Decoration>[] = [];
 				const doc = view.state.doc;
-				const marks: { pos: number; clip: Clip }[] = [];
-				for (const c of clips) {
+				// The clip's own block id (" ^clip-abc", added for an embed) is hidden in live preview,
+				// except on the line with the cursor, so it can still be seen and edited.
+				if (view.state.field(editorLivePreviewField, false)) {
+					const busy = new Set(view.state.selection.ranges.flatMap((r) => [doc.lineAt(r.from).number, doc.lineAt(r.to).number]));
+					for (const { from, to } of view.visibleRanges) {
+						for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
+							const line = doc.line(n);
+							const m = / \^clip-[a-z0-9]+\s*$/.exec(line.text);
+							if (m && !busy.has(n)) out.push(Decoration.replace({}).range(line.from + m.index + 1, line.to));
+						}
+					}
+				}
+				const path = view.state.field(editorInfoField, false)?.file?.path;
+				const clips = path && plugin.settings.badges ? plugin.store.byPath.get(path) : undefined;
+				for (const c of clips ?? []) {
 					if (!c.uses.length) continue;
 					const p = c.places.find((x) => x.path === path);
 					if (!p || p.line + 1 > doc.lines) continue;
@@ -63,11 +72,13 @@ export function badgeExtension(plugin: ObsiClips): Extension {
 					let end = p.line + 1;
 					if (/^>/.test(doc.line(end).text)) while (end < doc.lines && /^>/.test(doc.line(end + 1).text)) end++;
 					else end = Math.min(p.endLine + 1, doc.lines);
-					marks.push({ pos: doc.line(end).to, clip: c });
+					// Before a block id, so the mark is not hidden with it.
+					const last = doc.line(end);
+					const id = / \^[\w-]+\s*$/.exec(last.text);
+					const pos = id ? last.from + id.index + 1 : last.to;
+					out.push(Decoration.widget({ widget: new UsedWidget(plugin, c), side: -1 }).range(pos));
 				}
-				marks.sort((a, b) => a.pos - b.pos);
-				for (const m of marks) b.add(m.pos, m.pos, Decoration.widget({ widget: new UsedWidget(plugin, m.clip), side: 1 }));
-				return b.finish();
+				return Decoration.set(out, true);
 			}
 		},
 		{ decorations: (v) => v.decorations },
@@ -75,7 +86,7 @@ export function badgeExtension(plugin: ObsiClips): Extension {
 }
 
 /** Tells every open editor to redraw its marks. */
-export function redrawBadges(plugin: ObsiClips) {
+export function redrawBadges(plugin: ClipsPlugin) {
 	for (const leaf of plugin.app.workspace.getLeavesOfType("markdown")) {
 		const view = leaf.view;
 		if (!(view instanceof MarkdownView)) continue;
@@ -86,7 +97,7 @@ export function redrawBadges(plugin: ObsiClips) {
 }
 
 /** Reading view: adds the mark to the quote or callout that holds a used clip. */
-export function badgePostProcessor(plugin: ObsiClips) {
+export function badgePostProcessor(plugin: ClipsPlugin) {
 	return (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
 		if (!plugin.settings.badges) return;
 		const clips = plugin.store.byPath.get(ctx.sourcePath);

@@ -1,6 +1,6 @@
 {
-	"name": "obsi-clips",
-	"version": "0.1.0",
+	"name": "clips",
+	"version": "0.2.0",
 	"description": "Use your clips: find the right highlight while you write, see how often each one is used, and bring back the ones you forgot.",
 	"main": "main.js",
 	"private": true,

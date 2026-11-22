@@ -87,7 +87,8 @@ export async function textFor(app: App, c: Clip, how: InsertFormat, fromPath: st
 
 /** Puts text at the cursor on its own lines, with a blank line around it, and moves the cursor after it. */
 export function insertAtCursor(editor: Editor, text: string): void {
-	const cur = editor.getCursor();
+	// After a selection, never over it: the selection may be what the clip was searched by.
+	const cur = editor.getCursor("to");
 	const line = editor.getLine(cur.line);
 	const before = line.slice(0, cur.ch);
 	const after = line.slice(cur.ch);

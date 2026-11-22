@@ -1,11 +1,11 @@
 // The side bar: clips that fit the note you are writing. In a clip note it lists that note's clips and their uses.
 import { ItemView, MarkdownView, Platform, setIcon, TFile, type WorkspaceLeaf } from "obsidian";
-import type ObsiClips from "./main";
+import type ClipsPlugin from "./main";
 import { Relater } from "./relate";
 import { clipCard } from "./ui";
 import { fuzzyMatch, plural } from "./text";
 
-export const PANEL_VIEW = "obsi-clips-panel";
+export const PANEL_VIEW = "clips-panel";
 
 export class PanelView extends ItemView {
 	private file: TFile | null = null;
@@ -21,7 +21,7 @@ export class PanelView extends ItemView {
 
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 	) {
 		super(leaf);
 	}

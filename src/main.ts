@@ -7,13 +7,16 @@ import { LIBRARY_VIEW, LibraryView } from "./library";
 import { ClipSuggest, ReviewModal, SetupModal, TidyModal } from "./modals";
 import { dayKey, pickDaily, type Clip, type Place, type Query } from "./model";
 import { PANEL_VIEW, PanelView } from "./panel";
-import { mergeData, type InsertFormat, type PluginData, type Settings } from "./settings";
-import { ClipsSettingTab, providerChanged } from "./settingsTab";
+import { Relater } from "./relate";
+import { mergeData, PHONE_SECRET, type InsertFormat, type PluginData, type Settings } from "./settings";
+import { ClipsSettingTab } from "./settingsTab";
+import { AiSetupModal, finishPhoneLink } from "./aiSetup";
+import type { AiTarget } from "./ai";
 import { ClipStore } from "./store";
-import { normalize, plural } from "./text";
-import { likeQuery, NotePicker, UsesModal } from "./ui";
+import { keywords, normalize, plural } from "./text";
+import { NotePicker, UsesModal } from "./ui";
 
-export default class ObsiClips extends Plugin {
+export default class ClipsPlugin extends Plugin {
 	data!: PluginData;
 	store!: ClipStore;
 	ai!: Ai;
@@ -31,13 +34,15 @@ export default class ObsiClips extends Plugin {
 		this.settings = this.data.settings;
 		this.target = new Target(this.app);
 		this.ai = new Ai(this.app, () => this.data, () => this.saveSoon());
-		this.store = new ClipStore({ app: this.app, data: this.data, saveSoon: () => this.saveSoon(), dir: this.manifest.dir ?? `${this.app.vault.configDir}/plugins/obsi-clips` });
+		this.store = new ClipStore({ app: this.app, data: this.data, saveSoon: () => this.saveSoon(), dir: this.manifest.dir ?? `${this.app.vault.configDir}/plugins/clips` });
 
 		this.registerView(LIBRARY_VIEW, (leaf) => new LibraryView(leaf, this));
 		this.registerView(PANEL_VIEW, (leaf) => new PanelView(leaf, this));
 		this.registerView(WHATS_NEW_VIEW, (leaf) => new WhatsNewView(leaf, this));
 		this.settingTab = new ClipsSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
+		// An Obsi app on the phone answers a link request here.
+		this.registerObsidianProtocolHandler("clips-ai", (params) => void this.handleLink(params));
 		this.registerEditorExtension(badgeExtension(this));
 		this.registerMarkdownPostProcessor(badgePostProcessor(this));
 
@@ -117,12 +122,39 @@ export default class ObsiClips extends Plugin {
 			}
 		}
 		if (key === "reviewCount") this.data.daily = { day: "", ids: [], done: [] };
-		if (key === "ai.provider") {
-			providerChanged(this);
-			void this.saveNow();
-		}
 		if (key.startsWith("ai.") || key === "folders") this.settingTab.update();
 		this.updateStatus();
+	}
+
+	/** Saves an AI choice that has passed its test, and turns AI on. */
+	useAi(t: AiTarget) {
+		this.settings.ai = { ...this.settings.ai, ...t, on: true };
+		void this.saveNow();
+		this.settingTab.update();
+	}
+
+	/** The answer from an Obsi app on this phone, by obsidian://clips-ai. */
+	handleLink(params: Record<string, string>) {
+		return finishPhoneLink(this, params);
+	}
+
+	openAiSetup() {
+		new AiSetupModal(this).open();
+	}
+
+	/** Turns AI off and removes its key and phone link from this device. */
+	forgetAi() {
+		const s = this.settings.ai;
+		try {
+			this.app.secretStorage.setSecret(s.keyName, "");
+			this.app.secretStorage.setSecret(PHONE_SECRET, "");
+		} catch {
+			// Nothing saved.
+		}
+		this.settings.ai = { ...s, on: false };
+		void this.saveNow();
+		this.settingTab.update();
+		new Notice("AI is off. Its key and links are removed from this device.");
 	}
 
 	async setFolders(folders: string[], openAfter = false) {
@@ -142,79 +174,92 @@ export default class ObsiClips extends Plugin {
 	// Commands and menus
 	// -----------------------------------------------------------------------
 
+	// Four commands, each one complete. Everything else is in the library's menu, the editor's
+	// right-click menu and Settings, so the command list stays short.
 	private addCommands() {
-		this.addCommand({ id: "open-library", name: "Open clip library", callback: () => this.openLibrary() });
-		this.addCommand({ id: "open-panel", name: "Show clips for this note", callback: () => void this.openPanel(true) });
-		this.addCommand({
-			id: "put-clip",
-			name: "Put a clip in this note",
-			editorCallback: () => new ClipSuggest(this).open(),
-		});
-		this.addCommand({ id: "review", name: "Review today's clips", callback: () => this.openReview() });
-		this.addCommand({ id: "tidy", name: "Tidy clips", callback: () => this.openTidy() });
-		this.addCommand({
-			id: "like-selection",
-			name: "Find clips like the selected text",
-			editorCheckCallback: (checking, editor) => {
-				const sel = editor.getSelection().trim();
-				if (!sel) return false;
-				if (!checking) this.findLike(sel);
-				return true;
-			},
-		});
-		this.addCommand({
-			id: "uses-here",
-			name: "Show where the clip at the cursor is used",
-			editorCheckCallback: (checking, editor, ctx) => {
-				const c = ctx.file ? this.store.clipAt(ctx.file.path, editor.getCursor().line) : null;
-				if (!c) return false;
-				if (!checking) {
-					if (c.uses.length) new UsesModal(this, c).open();
-					else new Notice("This clip is not used yet.");
-				}
-				return true;
-			},
-		});
-		this.addCommand({ id: "count-again", name: "Count clip uses again", callback: () => void this.store.rebuild().then(() => new Notice("Uses counted")) });
-		this.addCommand({ id: "setup", name: "Pick clip folders", callback: () => this.openSetup() });
-		this.addCommand({ id: "whats-new", name: "What's new", callback: () => void this.openWhatsNew() });
+		this.addCommand({ id: "put-clip", name: "Put a clip in", callback: () => this.openPicker() });
+		this.addCommand({ id: "open-library", name: "Open library", callback: () => this.openLibrary({}, true) });
+		this.addCommand({ id: "open-panel", name: "Show for this note", callback: () => void this.openPanel(true) });
+		this.addCommand({ id: "review", name: "Review", callback: () => this.openReview(true) });
+	}
+
+	/**
+	 * The clip picker. With text selected, it searches for clips like that text and puts the pick
+	 * after the selection. With no search, it lists the clips that fit the open note first.
+	 */
+	openPicker() {
+		if (!this.store.ready) {
+			new Notice(this.settings.folders.length ? "Still reading your clips. Try again in a moment." : "Pick your clip folders first.");
+			if (!this.settings.folders.length) this.openSetup();
+			return;
+		}
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (view) this.target.track(view.leaf);
+		const sel = view?.getMode() === "source" ? view.editor.getSelection().trim() : "";
+		new ClipSuggest(this, undefined, sel ? this.likeText(sel) : "").open();
 	}
 
 	private addMenus() {
 		this.registerEvent(
 			this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor, info) => {
 				const sel = editor.getSelection().trim();
-				if (sel) menu.addItem((i) => i.setSection("action").setTitle("Find clips like this").setIcon("quote").onClick(() => this.findLike(sel)));
-				menu.addItem((i) => i.setSection("action").setTitle("Put a clip here").setIcon("quote").onClick(() => new ClipSuggest(this).open()));
+				menu.addItem((i) =>
+					i
+						.setSection("action")
+						.setTitle(sel ? "Put a clip like this here" : "Put a clip here")
+						.setIcon("quote")
+						.onClick(() => this.openPicker()),
+				);
 				const c = info.file ? this.store.clipAt(info.file.path, editor.getCursor().line) : null;
 				if (c) menu.addItem((i) => i.setSection("action").setTitle(c.uses.length ? `Show uses of this clip (${c.uses.length})` : "This clip is not used yet").setIcon("list").onClick(() => c.uses.length && new UsesModal(this, c).open()));
 			}),
 		);
 	}
 
-	private findLike(text: string) {
-		const words = normalize(text).split(" ").filter((w) => w.length > 3);
-		if (words.length <= 4) {
-			this.openLibrary({ text: words.join(" "), sort: "relevance" });
-			return;
+	private relater: { n: number; r: Relater } | null = null;
+
+	/** The clips that fit a note, best first, by their words and tags. Clips already used there are left out. */
+	async rankForNote(f: TFile, limit = 40): Promise<string[]> {
+		const store = this.store;
+		if (!store.ready || store.byPath.get(f.path)?.length) return [];
+		if (!this.relater || this.relater.n !== store.clips.length) {
+			this.relater = { n: store.clips.length, r: new Relater(store.clips.map((c) => ({ id: c.id, words: c.words, tags: c.tags }))) };
 		}
-		// A long selection: the side bar ranks clips against it.
-		const temp = { id: "", text, norm: normalize(text), places: [], kind: "note", source: "", author: "", url: "", clipped: 0, tags: [], words: [], uses: [] } as unknown as Clip;
-		temp.words = normalize(text).split(" ");
-		this.openLibrary({ text: likeQuery(temp), sort: "relevance" });
+		const open = this.app.workspace.getLeavesOfType("markdown").map((l) => l.view).find((v): v is MarkdownView => v instanceof MarkdownView && v.file === f);
+		const body = (open ? open.editor.getValue() : await this.app.vault.cachedRead(f)).replace(/^---\n[\s\S]*?\n---\n?/, "");
+		const cache = this.app.metadataCache.getFileCache(f);
+		const fm = cache?.frontmatter?.tags as unknown;
+		const tags = [...(cache?.tags ?? []).map((t) => t.tag.slice(1)), ...(Array.isArray(fm) ? fm.map(String) : typeof fm === "string" ? [fm] : [])];
+		const skip = new Set(store.clips.filter((c) => store.state(c.id).arch || c.uses.some((u) => u.path === f.path)).map((c) => c.id));
+		return this.relater.r.rank(f.basename + "\n" + f.basename + "\n" + body, tags, [], skip, limit).map((r) => r.id);
+	}
+
+	/** A search made from selected text: its few strongest words. */
+	private likeText(text: string): string {
+		const words = [...new Set(keywords(text))];
+		if (words.length <= 2) return words.join(" ");
+		// Every search word must match, so keep the two that say most: words your clips use, but rarely.
+		const df = new Map<string, number>();
+		for (const c of this.store.clips) for (const w of new Set(c.words)) df.set(w, (df.get(w) ?? 0) + 1);
+		const known = words.filter((w) => df.has(w)).sort((a, b) => (df.get(a) ?? 0) - (df.get(b) ?? 0) || b.length - a.length);
+		return (known.length ? known : words.sort((a, b) => b.length - a.length)).slice(0, 2).join(" ");
 	}
 
 	// -----------------------------------------------------------------------
 	// Views
 	// -----------------------------------------------------------------------
 
-	openLibrary(part: Partial<Query> = {}) {
+	/** Opens the library, or goes to it when it is open. With focus, the cursor goes to its search. */
+	openLibrary(part: Partial<Query> = {}, focus = false) {
 		const ws = this.app.workspace;
 		let leaf = ws.getLeavesOfType(LIBRARY_VIEW)[0];
 		const done = () => {
 			const view = leaf?.view;
 			if (view instanceof LibraryView && Object.keys(part).length) view.setQuery(part);
-			if (leaf) void ws.revealLeaf(leaf);
+			if (leaf) void ws.revealLeaf(leaf).then(() => {
+				if (focus && leaf) ws.setActiveLeaf(leaf, { focus: true });
+				if (focus && view instanceof LibraryView) view.focusSearch();
+			});
 		};
 		if (leaf) return done();
 		leaf = ws.getLeaf("tab");
@@ -232,17 +277,34 @@ export default class ObsiClips extends Plugin {
 		if (reveal) await ws.revealLeaf(leaf);
 	}
 
-	openReview() {
+	/** Today's clips. With more, and today's are done, it adds a few more instead of stopping. */
+	openReview(more = false) {
 		if (!this.store.ready) {
 			new Notice(this.settings.folders.length ? "Still reading your clips. Try again in a moment." : "Pick your clip folders first.");
 			if (!this.settings.folders.length) this.openSetup();
 			return;
 		}
 		if (!this.reviewLeft()) {
-			new Notice("Nothing to review today. New clips come tomorrow.");
-			return;
+			if (!more || !this.addMoreReview()) {
+				new Notice("Nothing to review today. New clips come tomorrow.");
+				return;
+			}
+			new Notice("Today's clips are done. Here are a few more.");
 		}
 		new ReviewModal(this).open();
+	}
+
+	/** Adds the next few clips to today's review. False when there are none left to add. */
+	private addMoreReview(): boolean {
+		const d = this.daily();
+		const skip = new Set([...d.ids, ...d.done]);
+		const rest = this.store.clips.filter((c) => !skip.has(c.id));
+		const ids = pickDaily(rest, this.data.clips, this.settings.reviewCount);
+		if (!ids.length) return false;
+		d.ids.push(...ids);
+		this.saveSoon();
+		this.updateStatus();
+		return true;
 	}
 
 	openTidy() {
@@ -311,6 +373,11 @@ export default class ObsiClips extends Plugin {
 	// -----------------------------------------------------------------------
 
 	async putClip(c: Clip, how?: InsertFormat, place?: Place) {
+		// No note to put it in: pick one, rather than stop.
+		if (!this.target.file()) {
+			this.putInOther(c);
+			return false;
+		}
 		const ok = await this.target.put(c, how ?? this.settings.insertFormat, this.settings, place);
 		if (ok) {
 			this.store.setState(c.id, { ...this.store.state(c.id), put: Date.now() });
@@ -478,7 +545,7 @@ export default class ObsiClips extends Plugin {
 // What's new
 // ---------------------------------------------------------------------------
 
-export const WHATS_NEW_VIEW = "obsi-clips-whats-new";
+export const WHATS_NEW_VIEW = "clips-whats-new";
 
 function compareVersions(a: string, b: string): number {
 	const x = a.split(".").map(Number);
@@ -502,7 +569,7 @@ class WhatsNewView extends ItemView {
 
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 	) {
 		super(leaf);
 	}
@@ -511,7 +578,7 @@ class WhatsNewView extends ItemView {
 		return WHATS_NEW_VIEW;
 	}
 	getDisplayText() {
-		return "What's new in Obsi Clips";
+		return "What's new in Clips";
 	}
 	getIcon() {
 		return "gift";
@@ -541,7 +608,7 @@ class WhatsNewView extends ItemView {
 		const list = releases();
 		const latest = list[0]?.version ?? "";
 		const fresh = list.filter((r) => this.since && compareVersions(r.version, this.since) > 0);
-		page.createEl("p", { cls: "oc-wn-lead", text: fresh.length ? `Obsi Clips is now ${latest}. Here is what changed since ${this.since}.` : `Obsi Clips ${latest}.` });
+		page.createEl("p", { cls: "oc-wn-lead", text: fresh.length ? `Clips is now ${latest}. Here is what changed since ${this.since}.` : `Clips ${latest}.` });
 		for (const r of list) {
 			const isNew = fresh.includes(r);
 			const box = page.createDiv({ cls: isNew ? "oc-wn-release is-new" : "oc-wn-release" });
@@ -554,7 +621,7 @@ class WhatsNewView extends ItemView {
 				this.plugin.settings.showWhatsNew = false;
 				this.plugin.saveSoon();
 				off.remove();
-				new Notice("Turn it on again in Settings, Obsi Clips");
+				new Notice("Turn it on again in Settings, Clips");
 			});
 		}
 	}

@@ -1,8 +1,8 @@
-# Obsi Clips
+# Clips
 
-Use the clips you save. Obsi Clips reads the highlights in your vault and puts the right ones next to the note you are writing. It counts how often you use each clip and where. Each day it brings back a few clips you forgot.
+Use the clips you save. Clips reads the highlights in your vault and puts the right ones next to the note you are writing. It counts how often you use each clip and where. Each day it brings back a few clips you forgot.
 
-It works with the clips from ObsiTube, ObsiRead, ObsiLearn, Obsi Bible, Readest, the Obsidian Web Clipper and any `==marked==` text. It works on desktop, phones and tablets.
+Clips is part of the Obsi apps. It works with the clips from ObsiTube, ObsiRead, ObsiLearn, Obsi Bible, Readest, the Obsidian Web Clipper and any `==marked==` text. It works on desktop, phones and tablets.
 
 ![The library with the side bar](docs/media/library.png)
 
@@ -12,7 +12,7 @@ It works with the clips from ObsiTube, ObsiRead, ObsiLearn, Obsi Bible, Readest,
 2. A short setup opens. It finds the folders that hold clips and shows how many clips each one has. Tick the folders you want and press **Use these folders**.
 3. The library opens. The side bar on the right shows **Clips for this note**.
 
-You can change the folders at any time in **Settings → Obsi Clips → Clip folders**, or run **Pick clip folders** again.
+You can change the folders at any time in **Settings → Clips → Clip folders**, or press **Find my clip folders** there.
 
 ### On a phone or tablet
 
@@ -23,6 +23,19 @@ You can change the folders at any time in **Settings → Obsi Clips → Clip fol
 
 All buttons on a phone are big enough to tap. Card buttons are always visible, not only on hover.
 
+## Commands
+
+Four commands, so they are easy to put on keys. Set keys in **Settings → Hotkeys**: search for "Clips".
+
+| Command | What it does |
+|---|---|
+| **Put a clip in** | Opens the clip picker. The clips that fit your note come first. With text selected, it searches for clips like that text and puts the clip after it. With no note open, it asks which note. |
+| **Open library** | Opens the library, or goes to it, with the cursor in its search. |
+| **Show for this note** | Opens the side bar. |
+| **Review** | Today's clips. When they are done, a few more. |
+
+Everything else is in the library's **⋯** menu, the right-click menu in a note, and Settings.
+
 ## What it does
 
 ### Clips for this note
@@ -32,7 +45,6 @@ The side bar reads the note you are writing and shows the clips that fit it. Eac
 - Tap the arrow to put a clip in at the cursor.
 - On desktop, drag a clip into the note.
 - Type in the search box to look through all clips.
-- Select text in a note, right-click and pick **Find clips like this** to search with it.
 
 When the open note is a clip note (a book, video or article), the side bar shows the clips in that note instead.
 
@@ -40,7 +52,9 @@ When the open note is a clip note (a book, video or article), the side bar shows
 
 ### Put a clip in
 
-Run **Put a clip in this note**, or right-click in a note and pick **Put a clip here**. Type a few letters. The search finds exact words first, then the start of words, then small typos.
+Run **Put a clip in**, or right-click in a note and pick **Put a clip here**. Before you type, the clips that fit your note are at the top. Type a few letters to search: exact words come first, then the start of words, then small typos.
+
+Select some text first to find clips like it. The picker searches with its two strongest words, and the clip goes in after your text, never over it.
 
 - **Enter** puts it in as a quote with a link back to where it came from.
 - **Shift+Enter** puts it in as an embed, so it stays linked to the clip.
@@ -95,17 +109,17 @@ With the keyboard: `/` goes to search, arrow keys or `j` and `k` move between cl
 
 Each day, a few clips you have not used yet. Clips that were never shown come first.
 
-- **Put in a note** (`U`) puts it in the last note you wrote in.
+- **Put in a note** (`U`) asks which note, then puts it there.
 - **Keep** (`K`) brings it back later: in 7 days, then 21, 60 and 180.
 - **Star** (`S`) and **Archive** (`A`).
 
-The status bar shows how many are left. A short notice reminds you once a day. Turn both off in **Review**.
+When today's clips are done, **Review** gives you a few more. The status bar shows how many are left. A short notice reminds you once a day. Turn both off in **Review**.
 
 ![Review](docs/media/review.png)
 
 ### Tidy
 
-Run **Tidy clips** to find:
+Open **Tidy clips** from the library's **⋯** menu, or from Settings, to find:
 
 - **In two notes**: the same words saved twice. They count as one clip.
 - **Near copies**: clips that say almost the same thing.
@@ -137,17 +151,38 @@ When it is on, it does two small things:
 - **Close in meaning.** Search and **Clips for this note** also find clips that mean the same thing with other words. These come after the exact matches, under their own heading.
 - **Tag ideas.** In a clip's tags, it suggests tags. It reuses your own tags where it can.
 
-To turn it on, open **Settings → Obsi Clips → AI service**, pick a service (OpenRouter, OpenAI, Groq, Ollama or your own address), add a key and press **Test**.
+It never writes text for you.
 
-The key is kept in Obsidian's key store on this device. It is never in the plugin's `data.json`, so it does not go into your vault or your sync. The plugin sends only short pieces: a clip's text, or the first part of the note you are writing. Results are kept so the same question is not asked twice.
+### Set it up
 
-With Ollama, nothing leaves your computer.
+Open **Settings → Clips → AI → Set up AI**. One window shows every choice:
+
+1. **On this computer.** It looks for model apps that are running: Ollama, LM Studio, Jan, GPT4All and llama.cpp. Each model they have is listed, smallest first. Small models are fast and enough. Press **Use**.
+2. **On this phone (Android).** Pick **Model in an Obsi app** and press **Link**. ObsiTube, ObsiRead, ObsiLearn or Obsi Bible opens and asks if Clips may use its AI model. Press **Allow**. You come back to Obsidian, linked. If the app has no model yet, it says so: get one in that app's **Settings → AI**.
+3. **On your network.** A computer in your home that runs Ollama or LM Studio. Type its address, like `192.168.1.20`, and press **Look**. In Ollama, turn on **Expose Ollama to the network**. In LM Studio, turn on **Serve on Local Network**.
+4. **A service with a key.** OpenRouter, Anthropic, OpenAI, Google Gemini, Groq, Mistral, DeepSeek, xAI, or any OpenAI-style service. Pick the service and press **Get a key** if you need one. Paste the key. A small, fast model is filled in. Press **Pick** to choose another from the service's own list: the small, fast ones come first, with their price. Then press **Use this service**.
+
+One small, fast model is enough for everything here. Each job asks for a very short answer, so a big model only costs more and is slower. Models that think before they answer are put last in **Pick**, because they use many more tokens.
+
+Each choice is tested before it is saved. If the test fails, nothing changes, and the window says why.
+
+No model app yet? [Ollama](https://ollama.com) and [LM Studio](https://lmstudio.ai) are free. Install one, get a small model, then press **Look again**.
+
+### How it is kept safe
+
+- **Models on your device stay on your device.** Clips looks for them only at `127.0.0.1`, this device's own address.
+- **Keys stay out of your vault.** A key is kept in Obsidian's key store on this device. It is never in the plugin's `data.json`, so it never goes into your vault or your sync. **Remove AI from this device** deletes it.
+- **A key is sent only over https,** so it cannot be read on the way. The only exception is this device itself. A plain `http` address is allowed only on this device or your home network, and never with a key.
+- **The phone link asks first.** The Obsi app shows who is asking and waits for **Allow**. It listens only on `127.0.0.1`, so nothing off the phone can reach it. Every request needs the link key. Web pages are refused. The app keeps only a scrambled copy of the key, and you can remove the link in the app's **Settings → AI**. The link is accepted only if it answers a request Clips made in the last ten minutes.
+- **Little is sent.** Only short pieces go out: a clip's text, or the first part of the note you are writing. Each answer is capped at a few dozen tokens. Results are kept, so the same question is never asked twice.
+
+While Obsidian may use the phone's model, the Obsi app shows a small notification. It stops by itself after 20 minutes unused, and starts again when you open the app.
 
 ## Things to know
 
-- **Embeds add a block id.** Putting a clip in as an embed adds a short id like `^clip-abc123` to the end of that clip in its note. If an app writes that note again from scratch, it can remove the id and the embed breaks. Obsi Bible notes are written over by the app, so Obsi Clips puts Bible clips in as quotes, not embeds. **Tidy → Broken links** finds any embed that broke.
+- **Embeds add a block id.** Putting a clip in as an embed adds a short id like `^clip-abc123` to the end of that clip in its note. If an app writes that note again from scratch, it can remove the id and the embed breaks. Obsi Bible notes are written over by the app, so Clips puts Bible clips in as quotes, not embeds. **Tidy → Broken links** finds any embed that broke.
 - **The plugin never changes your clip notes**, except to add that block id when you choose an embed.
-- **The first count takes a moment** in a big vault. After that, only changed notes are read again.
+- **No work in the background.** The first count reads your notes once, then keeps the result. After that, only a note you change is read again. **Count uses again** (in the library's **⋯** menu) reads every note again if a count ever looks wrong.
 - Star, archive, review and tags you add in the plugin are kept in the plugin's own data. Tags in your notes stay in your notes.
 
 ## Settings
@@ -157,11 +192,11 @@ With Ollama, nothing leaves your computer.
 - **Counting uses**: pasted text counts or not, folders to ignore, and the **Used 3×** marks.
 - **Review**: how many clips a day, the daily notice and the status bar.
 - **Side bar**: how many clips it shows, and whether it opens when Obsidian starts.
-- **AI service**: see above.
+- **AI**: set up, change or remove AI, find by meaning, and tag ideas. See above.
 
 ## Install by hand
 
-Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Virus7976/Obsi-Clips/releases/latest). Put them in `<your vault>/.obsidian/plugins/obsi-clips/`. Turn the plugin on in **Settings → Community plugins**.
+Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Virus7976/Obsi-Clips/releases/latest). Put them in `<your vault>/.obsidian/plugins/clips/`. Turn the plugin on in **Settings → Community plugins**.
 
 ## Build
 

@@ -1,6 +1,6 @@
 // Pieces shared by the screens: the clip card, the clip menu, and small pickers.
 import { FuzzySuggestModal, Menu, Modal, Notice, Platform, TFile, TFolder, setIcon, type App, type FuzzyMatch } from "obsidian";
-import type ObsiClips from "./main";
+import type ClipsPlugin from "./main";
 import { KINDS, type Clip, type Kind, type Place } from "./model";
 import { originalLink } from "./insert";
 import { plural, type Range } from "./text";
@@ -74,7 +74,7 @@ export interface CardOptions {
 }
 
 /** One clip as a card: colour bar, text, note, details, tags and actions. */
-export function clipCard(parent: HTMLElement, plugin: ObsiClips, c: Clip, o: CardOptions = {}): HTMLElement {
+export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: CardOptions = {}): HTMLElement {
 	const st = plugin.store.state(c.id);
 	const p = c.places[0];
 	const card = parent.createDiv({ cls: "oc-card" + (o.compact ? " is-compact" : "") + (st.arch ? " is-archived" : "") });
@@ -163,7 +163,7 @@ export function clipCard(parent: HTMLElement, plugin: ObsiClips, c: Clip, o: Car
 }
 
 /** Everything you can do with a clip, as one menu. */
-export function clipMenu(plugin: ObsiClips, c: Clip, at: MouseEvent | { x: number; y: number }): void {
+export function clipMenu(plugin: ClipsPlugin, c: Clip, at: MouseEvent | { x: number; y: number }): void {
 	const st = plugin.store.state(c.id);
 	const p = c.places[0];
 	const m = new Menu();
@@ -213,7 +213,7 @@ const HOW_LABEL = { embed: "Embedded", link: "Linked", quote: "Quoted" } as cons
 /** Where a clip is used, newest first. Tap one to open that note at the clip. */
 export class UsesModal extends Modal {
 	constructor(
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 		private clip: Clip,
 	) {
 		super(plugin.app);
@@ -257,7 +257,7 @@ export class TagsModal extends Modal {
 	private removed = new Set<string>();
 
 	constructor(
-		private plugin: ObsiClips,
+		private plugin: ClipsPlugin,
 		private clips: Clip[],
 	) {
 		super(plugin.app);
@@ -467,6 +467,6 @@ export class ListPicker<T> extends FuzzySuggestModal<{ label: string; hint: stri
 	}
 }
 
-export function placeLabel(plugin: ObsiClips, p: Place): string {
+export function placeLabel(plugin: ClipsPlugin, p: Place): string {
 	return plugin.store.titleOf(p.path) + (p.where ? " · " + p.where : "");
 }

@@ -1,4 +1,4 @@
-/* Obsi Clips. Built on Obsidian's own theme variables, so it follows any theme, light or dark. */
+/* Clips. Built on Obsidian's own theme variables, so it follows any theme, light or dark. */
 
 .oc-library,
 .oc-panel {
@@ -785,3 +785,52 @@ button.oc-link-btn {
 @media (prefers-reduced-motion: reduce) {
 	.oc-card, .oc-actions, .oc-group-chev { transition: none; }
 }
+
+/* AI setup */
+.oc-ai-modal { width: min(560px, 100vw); }
+.oc-ai-intro { margin: 0 0 var(--size-4-3); color: var(--text-muted); font-size: var(--font-ui-small); line-height: 1.5; }
+.oc-ai-head { font-weight: var(--font-semibold); margin-top: var(--size-4-3); }
+.oc-ai-sub { color: var(--text-faint); font-size: var(--font-ui-smaller); margin-bottom: var(--size-4-2); }
+.oc-ai-list { display: flex; flex-direction: column; gap: 6px; }
+.oc-ai-looking, .oc-ai-empty { color: var(--text-muted); font-size: var(--font-ui-small); padding: var(--size-4-2) 0; }
+.oc-ai-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	padding: var(--size-4-2) var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+.oc-ai-row.is-current { border-color: hsla(var(--interactive-accent-hsl), 0.6); background: hsla(var(--interactive-accent-hsl), 0.06); }
+.oc-ai-row-text { flex: 1; min-width: 0; }
+.oc-ai-row-title { overflow-wrap: anywhere; }
+.oc-ai-row-desc { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.oc-ai-row button { flex: none; }
+.oc-ai-list > .oc-link-btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.oc-ai-list > .oc-link-btn svg { width: 14px; height: 14px; }
+.oc-ai-service { display: flex; flex-direction: column; gap: var(--size-4-2); }
+.oc-ai-field { display: flex; align-items: center; gap: var(--size-4-3); }
+.oc-ai-field.is-hidden { display: none; }
+.oc-ai-label { width: 72px; flex: none; color: var(--text-muted); font-size: var(--font-ui-small); }
+.oc-ai-field input, .oc-ai-field select { flex: 1; min-width: 0; }
+.oc-ai-service > button { align-self: flex-end; }
+.oc-ai-result { margin-top: var(--size-4-3); font-size: var(--font-ui-small); display: flex; align-items: center; gap: var(--size-4-3); min-height: 1.5em; }
+.oc-ai-result:empty { display: none; }
+.oc-ai-result span { flex: 1; }
+.oc-ai-result.is-good { color: var(--text-success); }
+.oc-ai-result.is-bad { color: var(--text-error); }
+.is-mobile .oc-ai-row { padding: var(--size-4-3); }
+.is-mobile .oc-ai-row button, .is-mobile .oc-ai-service > button, .is-mobile .oc-ai-result button { min-height: 44px; }
+.is-mobile .oc-ai-field { flex-direction: column; align-items: stretch; gap: 4px; }
+.is-mobile .oc-ai-field input, .is-mobile .oc-ai-field select { min-height: 44px; }
+.is-mobile .oc-ai-service > button { align-self: stretch; }
+.oc-ai-field > button { flex: none; }
+a.oc-ai-keylink { align-self: flex-start; font-size: var(--font-ui-small); }
+a.oc-ai-keylink.is-hidden { display: none; }
+.is-mobile .oc-ai-field > button { min-height: 44px; }
+
+/* A clip put in as an embed: one quote bar, no highlight colour, the link back kept small. */
+.markdown-embed[src*="#^clip-"] { border-inline-start: 2px solid var(--blockquote-border-color, var(--interactive-accent)); padding-inline-start: var(--size-4-4); padding-inline-end: 28px; }
+.markdown-embed[src*="#^clip-"] blockquote { border-inline-start: none; padding: 0; margin: 0; background: none; }
+.markdown-embed[src*="#^clip-"] mark { background: none; color: inherit; }
+.markdown-embed[src*="#^clip-"] a.external-link { font-size: var(--font-ui-small); color: var(--text-muted); }
