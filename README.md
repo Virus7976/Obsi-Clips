@@ -31,7 +31,7 @@ Four commands, so they are easy to put on keys. Set keys in **Settings → Hotke
 |---|---|
 | **Put a clip in** | Opens the clip picker. The clips that fit your note come first. With text selected, it searches for clips like that text and puts the clip after it. With no note open, it asks which note. |
 | **Open library** | Opens the library, or goes to it, with the cursor in its search. |
-| **Show for this note** | Opens the side bar. |
+| **Search in side bar** | Opens the side bar with the cursor in its search, even while you write in a note. Escape clears the search, and Escape again goes back to your note. |
 | **Review** | Today's clips. When they are done, a few more. |
 
 Everything else is in the library's **⋯** menu, the right-click menu in a note, and Settings.
@@ -150,6 +150,8 @@ When it is on, it does two small things:
 
 - **Close in meaning.** Search and **Clips for this note** also find clips that mean the same thing with other words. These come after the exact matches, under their own heading.
 - **Tag ideas.** In a clip's tags, it suggests tags. It reuses your own tags where it can.
+
+When a search finds nothing, press **Find by meaning**. AI looks for clips that mean the same thing in other words. This works even with **Find by meaning** turned off in Settings, because you asked.
 
 It never writes text for you.
 

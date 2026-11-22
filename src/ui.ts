@@ -3,7 +3,7 @@ import { FuzzySuggestModal, Menu, Modal, Notice, Platform, TFile, TFolder, setIc
 import type ClipsPlugin from "./main";
 import { KINDS, type Clip, type Kind, type Place } from "./model";
 import { originalLink } from "./insert";
-import { plural, type Range } from "./text";
+import { fuzzyMatch, plural, type Range } from "./text";
 
 export const kindName = (k: Kind) => KINDS.find((x) => x.id === k)?.name.replace(/s$/, "") ?? k;
 
@@ -74,6 +74,23 @@ export interface CardOptions {
 }
 
 /** One clip as a card: colour bar, text, note, details, tags and actions. */
+/** Clips close in meaning to a search: other words from AI, matched against the clips. Best first. */
+export async function clipsByMeaning(plugin: ClipsPlugin, query: string, pool: Clip[], skip: Set<string>, asked = false): Promise<Clip[]> {
+	const words = await plugin.ai.meaningWords(query, asked);
+	if (!words.length) return [];
+	const out: { c: Clip; score: number }[] = [];
+	for (const c of pool) {
+		if (skip.has(c.id)) continue;
+		let best = 0;
+		for (const w of words) {
+			const m = fuzzyMatch(w, c.text + " " + c.tags.join(" "));
+			if (m && m.score >= 8) best += m.score;
+		}
+		if (best) out.push({ c, score: best });
+	}
+	return out.sort((a, b) => b.score - a.score).map((x) => x.c);
+}
+
 export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: CardOptions = {}): HTMLElement {
 	const st = plugin.store.state(c.id);
 	const p = c.places[0];

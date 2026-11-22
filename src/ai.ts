@@ -212,9 +212,10 @@ export class Ai {
 	}
 
 	/** Other words for what a search means, so a search for "fear" also finds "courage". */
-	async meaningWords(query: string): Promise<string[]> {
+	async meaningWords(query: string, asked = false): Promise<string[]> {
 		const q = query.trim().toLowerCase().slice(0, 200);
-		if (!q || !this.usable() || !this.s.meaning) return [];
+		// "asked": the person pressed Find by meaning, so it runs even with Find by meaning turned off.
+		if (!q || !this.usable() || (!this.s.meaning && !asked)) return [];
 		const memo = this.data().memo.words;
 		const key = hashId(q);
 		if (memo[key]) return memo[key];

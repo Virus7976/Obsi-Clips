@@ -2,7 +2,8 @@
 import { ItemView, MarkdownView, Platform, setIcon, TFile, type WorkspaceLeaf } from "obsidian";
 import type ClipsPlugin from "./main";
 import { Relater } from "./relate";
-import { clipCard } from "./ui";
+import { clipCard, clipsByMeaning } from "./ui";
+import type { Clip } from "./model";
 import { fuzzyMatch, plural } from "./text";
 
 export const PANEL_VIEW = "clips-panel";
@@ -18,6 +19,8 @@ export class PanelView extends ItemView {
 	private picks: string[] | null = null;
 	private picksFor = "";
 	private showUsed = false;
+	/** Find by meaning for one search: null while AI looks. */
+	private meaning: { query: string; clips: Clip[] | null } | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -46,6 +49,19 @@ export class PanelView extends ItemView {
 		setIcon(search.createSpan({ cls: "oc-search-icon" }), "search");
 		this.searchEl = search.createEl("input", { attr: { type: "search", placeholder: "Search all clips", "aria-label": "Search all clips", enterkeyhint: "search" } });
 		this.searchEl.addEventListener("input", () => void this.draw());
+		this.searchEl.addEventListener("keydown", (e) => {
+			if (e.key !== "Escape") return;
+			e.preventDefault();
+			e.stopPropagation();
+			// Escape clears the search first, then goes back to the note.
+			if (this.searchEl.value) {
+				this.searchEl.value = "";
+				void this.draw();
+				return;
+			}
+			const leaf = this.app.workspace.getMostRecentLeaf();
+			if (leaf) this.app.workspace.setActiveLeaf(leaf, { focus: true });
+		});
 		this.bodyEl = root.createDiv({ cls: "oc-panel-body" });
 
 		this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
@@ -104,7 +120,7 @@ export class PanelView extends ItemView {
 		const f = this.file;
 		const query = this.searchEl.value.trim();
 
-		if (!this.plugin.settings.folders.length) {
+		if (this.plugin.store.needsFolders) {
 			this.empty("No clip folders yet", "Pick the folders that hold your clips.", "Set up", () => this.plugin.openSetup());
 			return;
 		}
@@ -124,7 +140,24 @@ export class PanelView extends ItemView {
 				.slice(0, 60);
 			head.createDiv({ cls: "oc-panel-sub", text: plural(hits.length, "clip") });
 			for (const h of hits) clipCard(body, this.plugin, h.c, { compact: true, ranges: h.m?.ranges.filter((r) => r[1] <= h.c.text.length) });
-			if (!hits.length) body.createDiv({ cls: "oc-muted oc-pad", text: "No clips match." });
+			const m = this.meaning?.query === query ? this.meaning : null;
+			if (m) {
+				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad", text: "Looking by meaning…" });
+				else if (!m.clips.length)
+					body.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "Nothing close in meaning either. Try other words." });
+				else {
+					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
+					for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, { compact: true });
+				}
+			} else if (!hits.length) {
+				const ai = this.plugin.ai.usable();
+				this.empty(
+					"No clips match",
+					ai ? "Try other words, or let AI look for clips that mean the same thing." : "Try other words. With AI set up, it can also find clips that mean the same thing.",
+					ai ? "Find by meaning" : "Set up AI",
+					() => (ai ? void this.findByMeaning(query) : this.plugin.openAiSetup()),
+				);
+			}
 			return;
 		}
 
@@ -196,6 +229,23 @@ export class PanelView extends ItemView {
 				void this.draw();
 			});
 		}
+	}
+
+	/** The cursor in the search box, from the command. */
+	focusSearch() {
+		this.searchEl.focus();
+		this.searchEl.select();
+	}
+
+	private async findByMeaning(query: string) {
+		this.meaning = { query, clips: null };
+		void this.draw();
+		const store = this.plugin.store;
+		const pool = store.clips.filter((c) => !store.state(c.id).arch);
+		const clips = await clipsByMeaning(this.plugin, query, pool, new Set(), true);
+		if (this.meaning?.query !== query) return;
+		this.meaning = { query, clips };
+		void this.draw();
 	}
 
 	private empty(title: string, text: string, button: string, onClick: () => void) {

@@ -194,7 +194,7 @@ export default class ClipsPlugin extends Plugin {
 	private addCommands() {
 		this.addCommand({ id: "put-clip", name: "Put a clip in", callback: () => this.openPicker() });
 		this.addCommand({ id: "open-library", name: "Open library", callback: () => this.openLibrary({}, true) });
-		this.addCommand({ id: "open-panel", name: "Show for this note", callback: () => void this.openPanel(true) });
+		this.addCommand({ id: "open-panel", name: "Search in side bar", callback: () => void this.searchPanel() });
 		this.addCommand({ id: "review", name: "Review", callback: () => this.openReview(true) });
 	}
 
@@ -279,6 +279,13 @@ export default class ClipsPlugin extends Plugin {
 		if (leaf) return done();
 		leaf = ws.getLeaf("tab");
 		void leaf.setViewState({ type: LIBRARY_VIEW, active: true }).then(done);
+	}
+
+	/** Opens the side bar with the cursor in its search. Escape there goes back to the note. */
+	async searchPanel() {
+		await this.openPanel(true);
+		const view = this.app.workspace.getLeavesOfType(PANEL_VIEW)[0]?.view;
+		if (view instanceof PanelView) view.focusSearch();
 	}
 
 	async openPanel(reveal: boolean) {

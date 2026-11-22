@@ -1,5 +1,15 @@
 # What's new
 
+## 0.4.0 (22 Nov 2026)
+
+**Find by meaning when nothing matches.**
+
+![An empty search offers Find by meaning](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.4.0/docs/media/find-by-meaning.png)
+
+- **Find by meaning.** When a search in the side bar or the library finds nothing, press **Find by meaning**. AI looks for clips that mean the same thing in other words. Without AI, the button sets it up.
+- **Search in side bar.** This command puts the cursor in the side bar's search, even while you write in a note. Escape goes back to your note. It replaces Show for this note.
+- **Whole vault works everywhere.** With no folders, the library and side bar showed "No clip folders yet". They now show your clips.
+
 ## 0.3.0 (22 Nov 2026)
 
 **No folders needed.**

@@ -30,6 +30,8 @@ export class LibraryView extends ItemView {
 	private redrawTimer = 0;
 	private meaningTimer = 0;
 	private meaningFor = "";
+	/** The search AI is looking at after Find by meaning was pressed. */
+	private meaningLooking = "";
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -171,7 +173,7 @@ export class LibraryView extends ItemView {
 
 	/** Also finds clips close in meaning: other words for the search, matched against your clips. */
 	private async addMeaning(words: string) {
-		const extraWords = await this.plugin.ai.meaningWords(words);
+		const extraWords = await this.plugin.ai.meaningWords(words, this.meaningLooking === words);
 		if (splitSearch(this.q.text).words.trim() !== words) return;
 		this.meaningFor = words;
 		if (!extraWords.length) return;
@@ -200,7 +202,7 @@ export class LibraryView extends ItemView {
 		const thisWeek = all.filter((c) => c.uses.some((u) => u.since >= week)).length;
 		this.statsEl.empty();
 		if (!store.ready) {
-			this.statsEl.setText(this.plugin.settings.folders.length ? "Reading your clips…" : "");
+			this.statsEl.setText(!this.plugin.store.needsFolders ? "Reading your clips…" : "");
 		} else {
 			const stat = (label: string, onClick?: () => void) => {
 				const b = this.statsEl.createEl(onClick ? "button" : "span", { cls: "oc-stat", text: label });
@@ -282,7 +284,7 @@ export class LibraryView extends ItemView {
 		const total = this.hits.length;
 		this.countEl.setText(store.ready ? (total === 0 && !this.extra.length ? "" : plural(total, "clip")) : "");
 
-		if (!this.plugin.settings.folders.length) {
+		if (this.plugin.store.needsFolders) {
 			this.empty("No clip folders yet", "Pick the folders that hold your clips.", "Set up", () => this.plugin.openSetup());
 			return;
 		}
@@ -292,6 +294,30 @@ export class LibraryView extends ItemView {
 		}
 		if (!store.clips.length) {
 			this.empty("No clips found", "Your clip folders have no highlights yet. Clip something in ObsiTube, ObsiRead, Readest or the Web Clipper.", "Change folders", () => this.plugin.openSettings());
+			return;
+		}
+		const words = splitSearch(this.q.text).words.trim();
+		if (!total && !this.extra.length && words && !filterCount(this.q)) {
+			const clear = () => {
+				this.searchEl.value = "";
+				this.setQuery({ ...clearFilters(), text: "" });
+			};
+			if (this.meaningLooking === words) {
+				this.empty("Looking by meaning…", "AI is looking for clips that mean the same thing.", "", () => undefined);
+				return;
+			}
+			if (this.meaningFor === words) {
+				const err = this.plugin.ai.lastError;
+				this.empty("Nothing close in meaning either", err ? "AI did not answer. " + err : "Try other words.", "Clear search", clear);
+				return;
+			}
+			const ai = this.plugin.ai.usable();
+			this.empty(
+				"No clips match",
+				ai ? "Try other words, or let AI look for clips that mean the same thing." : "Try other words. With AI set up, it can also find clips that mean the same thing.",
+				ai ? "Find by meaning" : "Set up AI",
+				() => (ai ? void this.findByMeaning(words) : this.plugin.openAiSetup()),
+			);
 			return;
 		}
 		if (!total && !this.extra.length) {
@@ -383,6 +409,15 @@ export class LibraryView extends ItemView {
 			if (i === 0) this.searchEl.focus();
 			else cards[i - 1].focus();
 		}
+	}
+
+	private async findByMeaning(words: string) {
+		this.meaningLooking = words;
+		this.draw();
+		await this.addMeaning(words);
+		this.meaningLooking = "";
+		this.meaningFor = words;
+		this.draw();
 	}
 
 	focusSearch() {
