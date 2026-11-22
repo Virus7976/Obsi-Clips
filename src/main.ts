@@ -13,6 +13,7 @@ import { ClipsSettingTab } from "./settingsTab";
 import { AiSetupModal, finishPhoneLink } from "./aiSetup";
 import type { AiTarget } from "./ai";
 import { ClipStore } from "./store";
+import { MeaningIndex } from "./meaning";
 import { keywords, normalize, plural } from "./text";
 import { NotePicker, UsesModal } from "./ui";
 
@@ -20,6 +21,7 @@ export default class ClipsPlugin extends Plugin {
 	data!: PluginData;
 	store!: ClipStore;
 	ai!: Ai;
+	meaning!: MeaningIndex;
 	target!: Target;
 	private saveTimer = 0;
 	private statusEl: HTMLElement | null = null;
@@ -34,7 +36,9 @@ export default class ClipsPlugin extends Plugin {
 		this.settings = this.data.settings;
 		this.target = new Target(this.app);
 		this.ai = new Ai(this.app, () => this.data, () => this.saveSoon());
-		this.store = new ClipStore({ app: this.app, data: this.data, saveSoon: () => this.saveSoon(), dir: this.manifest.dir ?? `${this.app.vault.configDir}/plugins/clips` });
+		const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/clips`;
+		this.store = new ClipStore({ app: this.app, data: this.data, saveSoon: () => this.saveSoon(), dir });
+		this.meaning = new MeaningIndex(this.app, dir, () => this.settings.index, () => this.store.clips);
 
 		this.registerView(LIBRARY_VIEW, (leaf) => new LibraryView(leaf, this));
 		this.registerView(PANEL_VIEW, (leaf) => new PanelView(leaf, this));
@@ -59,6 +63,11 @@ export default class ClipsPlugin extends Plugin {
 		this.registerEvent(this.store.on("change", () => {
 			redrawBadges(this);
 			this.updateStatus();
+			this.meaning.warmSoon();
+		}));
+		this.registerEvent(this.meaning.on("state", () => {
+			this.settingTab.update();
+			this.redrawMeaning();
 		}));
 		this.registerEvent(this.store.on("state", () => this.updateStatus()));
 		this.registerEvent(this.app.secretStorage.on("changed", () => this.settingTab.update()));
@@ -67,6 +76,7 @@ export default class ClipsPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.meaning.stop();
 		window.clearTimeout(this.saveTimer);
 		void this.saveData(this.data);
 	}
@@ -78,6 +88,7 @@ export default class ClipsPlugin extends Plugin {
 		if (fresh) new SetupModal(this).open();
 		if (!this.store.needsFolders) await this.store.rebuild();
 		this.afterBuild(fresh);
+		void this.meaning.start();
 		if (this.settings.panelOnStart) void this.openPanel(false);
 		this.whatsNewAfterUpdate(fresh);
 	}
@@ -124,7 +135,9 @@ export default class ClipsPlugin extends Plugin {
 			}
 		}
 		if (key === "reviewCount") this.data.daily = { day: "", ids: [], done: [] };
-		if (key.startsWith("ai.") || key === "folders") this.settingTab.update();
+		if (key === "index.on") void this.meaning.turned(this.settings.index.on);
+		if (key.startsWith("index.")) this.redrawMeaning();
+		if (key.startsWith("ai.") || key.startsWith("index.") || key === "folders") this.settingTab.update();
 		this.updateStatus();
 	}
 
@@ -286,6 +299,29 @@ export default class ClipsPlugin extends Plugin {
 	/** Draws the side bar again, after its look changes. */
 	redrawPanel() {
 		for (const leaf of this.app.workspace.getLeavesOfType(PANEL_VIEW)) if (leaf.view instanceof PanelView) void leaf.view.draw();
+	}
+
+	/** Side bar and library again, after meaning search changes. */
+	redrawMeaning() {
+		this.redrawPanel();
+		for (const leaf of this.app.workspace.getLeavesOfType(LIBRARY_VIEW)) if (leaf.view instanceof LibraryView) leaf.view.meaningChanged();
+	}
+
+	/** Gets the meaning model on this device and turns meaning search on. */
+	async getMeaning() {
+		this.settings.index.on = true;
+		await this.saveNow();
+		await this.meaning.get();
+		if (this.meaning.ready) new Notice(`Meaning search is on. ${plural(this.store.clips.length, "clip")} can be found by meaning.`);
+		else if (this.meaning.error) new Notice("Could not get the meaning model. " + this.meaning.error);
+	}
+
+	/** Deletes the model from this device and turns meaning search off. */
+	async removeMeaning() {
+		this.settings.index.on = false;
+		await this.saveNow();
+		await this.meaning.remove();
+		new Notice("Meaning search is removed from this device.");
 	}
 
 	/** Opens the side bar with the cursor in its search. Escape there goes back to the note. */

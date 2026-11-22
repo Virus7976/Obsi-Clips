@@ -79,3 +79,16 @@ export class Relater {
 		return out.slice(0, limit);
 	}
 }
+
+/**
+ * One list from two: clips that share words with the note, and clips close in meaning. A clip high in either list
+ * ranks high. A clip in both ranks highest.
+ */
+export function blend(words: Related[], meaning: string[]): Related[] {
+	const score = new Map<string, number>();
+	const K = 8;
+	words.forEach((r, i) => score.set(r.id, 1 / (K + i)));
+	meaning.forEach((id, i) => score.set(id, (score.get(id) ?? 0) + 1 / (K + i)));
+	const why = new Map(words.map((r) => [r.id, r.why]));
+	return [...score.entries()].sort((a, b) => b[1] - a[1]).map(([id, sc]) => ({ id, score: sc, why: why.get(id) ?? [] }));
+}

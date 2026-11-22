@@ -3,6 +3,7 @@ import type ClipsPlugin from "./main";
 import { FolderPicker } from "./ui";
 import { PROVIDERS } from "./settings";
 import { plural } from "./text";
+import { GET_MB, KEEP_MB } from "./meaning";
 
 type Obj = Record<string, unknown>;
 
@@ -35,6 +36,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 		const dropdown = (name: string, desc: string, key: string, options: Record<string, string>): SettingDefinition => ({ name, desc, control: { type: "dropdown", key, options } });
 		const store = this.plugin.store;
 		const ai = this.plugin.ai;
+		const meaning = this.plugin.meaning;
 
 		return [
 			{
@@ -229,6 +231,59 @@ export class ClipsSettingTab extends PluginSettingTab {
 				items: [
 					{
 						type: "page",
+						name: "Meaning search",
+						desc: "Finds clips close in meaning, on this device. No AI app, no key, no cost.",
+						displayValue: () => meaningLabel(this.plugin),
+						status: () => (s.index.on && meaning.state === "failed" ? "warning" : null),
+						items: [
+							{
+								type: "group",
+								items: [
+									{
+										name: "Get the meaning model",
+										desc:
+											meaning.state === "failed" && meaning.error
+												? "Last problem: " + meaning.error
+												: `Downloads a small model once (${GET_MB} MB) from Hugging Face and keeps ${KEEP_MB} MB in the plugin folder. Then a search for "fear" also finds a clip about courage.`,
+										action: () => void this.plugin.getMeaning(),
+										visible: () => !meaning.present && meaning.state !== "getting",
+									},
+									{
+										name: "Getting the meaning model…",
+										desc: `${GET_MB} MB. This takes a few seconds on a fast connection.`,
+										visible: () => meaning.state === "getting",
+									},
+									{ ...toggle("Use meaning search", "Off: search finds the same words only. The model stays on this device.", "index.on"), visible: () => meaning.present },
+								],
+							},
+							{
+								type: "group",
+								heading: "Where",
+								visible: () => meaning.present && s.index.on,
+								items: [
+									toggle("In search", "Under the matches, clips close in meaning. In the side bar and the library.", "index.search"),
+									toggle("In the side bar", "For this note also lists clips close in meaning, not only clips with the same words.", "index.sidebar"),
+									dropdown("How close", "Close: fewer clips, very near in meaning. Loose: more clips, some only a bit near.", "index.near", { close: "Close", some: "Some", loose: "Loose" }),
+								],
+							},
+							{
+								type: "group",
+								heading: "Other devices",
+								visible: () => meaning.present || s.index.on,
+								items: [
+									toggle("Get it on other devices", `A phone or computer that syncs these settings gets the model by itself (${GET_MB} MB, once). Each device finds meanings for new clips by itself, in a moment.`, "index.auto"),
+									{
+										name: "Remove from this device",
+										desc: `Turns meaning search off and deletes the model (${KEEP_MB} MB) from this device.`,
+										action: () => void this.plugin.removeMeaning(),
+										visible: () => meaning.present,
+									},
+								],
+							},
+						],
+					},
+					{
+						type: "page",
 						name: "AI",
 						desc: "Optional. Finds clips close in meaning and suggests tags. Off by default.",
 						displayValue: () => (ai.usable() ? aiLabel(this.plugin) : s.ai.on ? "Not ready" : "Off"),
@@ -269,6 +324,17 @@ export class ClipsSettingTab extends PluginSettingTab {
 			},
 		];
 	}
+}
+
+/** "On", "Getting…", "Off" for the Meaning search row. */
+function meaningLabel(plugin: ClipsPlugin): string {
+	const m = plugin.meaning;
+	if (m.state === "getting") return "Getting…";
+	if (m.state === "loading") return "Starting…";
+	if (m.ready) return "On";
+	if (plugin.settings.index.on && m.state === "failed") return "Not ready";
+	if (plugin.settings.index.on && !m.present) return "Not on this device";
+	return "Off";
 }
 
 /** "llama3.2:3b in Ollama", "ObsiTube on this phone", "gpt-4.1-mini on OpenAI". */

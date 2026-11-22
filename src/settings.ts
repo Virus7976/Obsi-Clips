@@ -25,6 +25,20 @@ export interface AiSettings {
 	tags: "tap" | "auto";
 }
 
+/** Meaning search on this device, with a small model and no AI app. */
+export interface IndexSettings {
+	/** Use it. Turned on when the model is got. The model itself is kept per device. */
+	on: boolean;
+	/** Search also lists clips close in meaning. */
+	search: boolean;
+	/** "For this note" also lists clips close in meaning. */
+	sidebar: boolean;
+	/** How close a clip must be to count. */
+	near: "close" | "some" | "loose";
+	/** A device that has these settings but no model gets the model by itself. */
+	auto: boolean;
+}
+
 export interface Settings {
 	/** Where clips are: anywhere in the vault, or only in some folders. */
 	scope: "vault" | "folders";
@@ -75,6 +89,7 @@ export interface Settings {
 	query: Query;
 	showWhatsNew: boolean;
 	ai: AiSettings;
+	index: IndexSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -116,6 +131,7 @@ export const DEFAULT_SETTINGS: Settings = {
 		order: true,
 		tags: "tap",
 	},
+	index: { on: false, search: true, sidebar: true, near: "some", auto: true },
 };
 
 export interface Provider {
@@ -184,6 +200,7 @@ export function mergeData(raw: unknown): PluginData {
 			scope: s.scope === "vault" || s.scope === "folders" ? s.scope : s.folders?.length ? "folders" : "vault",
 			query: { ...EMPTY_QUERY, ...(s.query ?? {}) },
 			ai: aiFrom(s.ai),
+			index: { ...DEFAULT_SETTINGS.index, ...(s.index ?? {}) },
 		},
 		clips: d.clips ?? {},
 		daily: { ...EMPTY_DATA.daily, ...(d.daily ?? {}) },

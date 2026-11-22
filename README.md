@@ -144,13 +144,30 @@ Plain `>` quotes with no marks can count too. Turn on **Plain quotes count** in 
 
 Your own note under a clip (the paragraph after an ObsiTube or ObsiRead quote, or Readest's **Note:**) shows under the clip.
 
+## Meaning search
+
+Finds clips that mean the same thing in other words. A search for "terrified" also finds a clip about fear. It runs on your device, with no AI app, no key and no cost.
+
+![A search for "a good life" finds clips close in meaning](docs/media/meaning-search.png)
+
+- **Get it once.** Press **Find by meaning** when a search finds nothing, or open **Settings → Clips → Meaning search → Get the meaning model**. It downloads a small model once (30 MB, from Hugging Face) and keeps 8 MB in the plugin folder.
+- **In search.** Clips close in meaning show under the matches, in the side bar and the library.
+- **In the side bar.** **For this note** also lists clips close in meaning, not only clips with the same words.
+- **New clips** are found by meaning as soon as they come in.
+- **On every device.** A phone or computer that syncs your settings gets the model by itself. Each device finds meanings for its clips in a moment. Turn off **Get it on other devices** to stop that.
+- **How close**: Close shows fewer clips, very near in meaning. Loose shows more.
+
+The model is [potion-base-8M](https://huggingface.co/minishlab/potion-base-8M) by Minish Lab (MIT licence). It works best on words and short phrases. It does not understand a whole sentence the way a chat AI does.
+
+![Settings for meaning search](docs/media/settings-meaning.png)
+
 ## AI (optional)
 
 AI is off until you set it up. Everything above works without it.
 
 When it is on, it does two small things:
 
-- **Close in meaning.** Search and **Clips for this note** also find clips that mean the same thing with other words. These come after the exact matches, under their own heading.
+- **Close in meaning.** Search and **Clips for this note** also find clips that mean the same thing with other words. These come after the exact matches, under their own heading. With **Meaning search** on, it does this instead and AI is not asked.
 - **Tag ideas.** In a clip's tags, it suggests tags. It reuses your own tags where it can.
 
 When a search finds nothing, press **Find by meaning**. AI looks for clips that mean the same thing in other words. This works even with **Find by meaning** turned off in Settings, because you asked.
@@ -197,7 +214,7 @@ While Obsidian may use the phone's model, the Obsi app shows a small notificatio
 - **Putting clips in**: quote, embed or plain text, the callout type, and whether to add your note and where it came from.
 - **Counting uses**: pasted text counts or not, folders to ignore, and the **Used 3×** marks.
 - **Review**: how many clips a day, the daily notice and the status bar.
-- **Side bar**: how many clips it shows, and whether it opens when Obsidian starts.
+- **Meaning search**: get or remove the model, in search, in the side bar, how close, and other devices.
 - **AI**: set up, change or remove AI, find by meaning, and tag ideas. See above.
 
 ## Install by hand

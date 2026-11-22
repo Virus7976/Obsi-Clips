@@ -1,5 +1,18 @@
 # What's new
 
+## 0.8.0 (22 Nov 2026)
+
+**Meaning search, with no AI app.**
+
+![A search for "a good life" finds clips close in meaning](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.8.0/docs/media/meaning-search.png)
+
+- **Find clips by meaning on this device.** A search for "terrified" also finds a clip about fear. No AI app, no key, no cost. Ollama does not have to run.
+- **Get it once.** Press **Find by meaning** on an empty search, or **Settings → Clips → Meaning search → Get the meaning model**. It downloads 30 MB once and keeps 8 MB.
+- **In search and in the side bar.** Clips close in meaning show under the matches. **For this note** also lists clips close in meaning. AI is not asked when meaning search is on.
+- **New clips are found by meaning at once.**
+- **Your phone too.** A phone or computer that syncs your settings gets the model by itself. Turn off **Get it on other devices** to stop that.
+- **Everything is a setting**: in search, in the side bar, and how close (Close, Some or Loose).
+
 ## 0.7.0 (22 Nov 2026)
 
 **Set it up your way.**

@@ -1,7 +1,8 @@
 // The side bar: clips that fit the note you are writing. In a clip note it lists that note's clips and their uses.
 import { ItemView, MarkdownView, Platform, setIcon, TFile, type WorkspaceLeaf } from "obsidian";
 import type ClipsPlugin from "./main";
-import { Relater } from "./relate";
+import { blend, Relater } from "./relate";
+import { GET_MB } from "./meaning";
 import { clipCard, clipsByMeaning, type CardOptions } from "./ui";
 import type { Clip } from "./model";
 import { fuzzyMatch, plural } from "./text";
@@ -145,6 +146,17 @@ export class PanelView extends ItemView {
 				.slice(0, 60);
 			head.createDiv({ cls: "oc-panel-sub", text: plural(hits.length, "clip") });
 			for (const h of hits) clipCard(body, this.plugin, h.c, { ...this.look(), ranges: h.m?.ranges.filter((r) => r[1] <= h.c.text.length) });
+			// Meaning search on this device: clips close in meaning, right away, with no AI.
+			const meaning = this.plugin.meaning;
+			if (meaning.usable("search")) {
+				const pool = store.clips.filter((c) => !store.state(c.id).arch);
+				const near = meaning.near(query, pool, new Set(hits.map((h) => h.c.id)), 40);
+				if (near.length) {
+					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
+					for (const n of near) clipCard(body, this.plugin, n.clip, this.look());
+				} else if (!hits.length) this.empty("No clips match", "Nothing close in meaning either. Try other words.", "", () => undefined);
+				return;
+			}
 			const m = this.meaning?.query === query ? this.meaning : null;
 			if (m) {
 				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad", text: "Looking by meaning…" });
@@ -156,11 +168,12 @@ export class PanelView extends ItemView {
 				}
 			} else if (!hits.length) {
 				const ai = this.plugin.ai.usable();
+				const getting = meaning.state === "getting" || meaning.state === "loading";
 				this.empty(
 					"No clips match",
-					ai ? "Try other words, or let AI look for clips that mean the same thing." : "Try other words. With AI set up, it can also find clips that mean the same thing.",
-					ai ? "Find by meaning" : "Set up AI",
-					() => (ai ? void this.findByMeaning(query) : this.plugin.openAiSetup()),
+					ai ? "Try other words, or let AI look for clips that mean the same thing." : getting ? "Getting the meaning model…" : `Try other words. Or find clips that mean the same thing. This gets a small model once (${GET_MB} MB).`,
+					getting ? "" : "Find by meaning",
+					() => (ai ? void this.findByMeaning(query) : void this.plugin.getMeaning()),
 				);
 			}
 			return;
@@ -201,7 +214,13 @@ export class PanelView extends ItemView {
 		for (const c of store.clips) if (store.state(c.id).arch) skip.add(c.id);
 		const ranked = this.relaterNow().rank(f.basename + "\n" + f.basename + "\n" + text, tags, [], skip, this.plugin.settings.panelCount + 10);
 		let order = ranked;
-		if (this.picks && this.picksFor === f.path) {
+		// Meaning search on this device: clips close in meaning join the clips that share words.
+		const byMeaning = this.plugin.meaning.usable("sidebar") && text.trim().split(/\s+/).length >= 5;
+		if (byMeaning) {
+			const near = this.plugin.meaning.near(f.basename + ". " + text, store.clips, skip, this.plugin.settings.panelCount + 10);
+			order = blend(ranked, near.map((n) => n.clip.id));
+		}
+		if (!byMeaning && this.picks && this.picksFor === f.path) {
 			const pickSet = new Set(this.picks);
 			order = [...this.picks.map((id) => ranked.find((r) => r.id === id)).filter((r): r is (typeof ranked)[number] => !!r), ...ranked.filter((r) => !pickSet.has(r.id))];
 		}
@@ -239,7 +258,7 @@ export class PanelView extends ItemView {
 		}
 
 		// Quietly reorder by meaning when AI is set up: once per note, after the text settles.
-		if (this.plugin.ai.usable() && this.plugin.settings.ai.meaning && this.plugin.settings.ai.order && !this.picks && ranked.length >= 3 && text.split(/\s+/).length >= 25) {
+		if (!byMeaning && this.plugin.ai.usable() && this.plugin.settings.ai.meaning && this.plugin.settings.ai.order && !this.picks && ranked.length >= 3 && text.split(/\s+/).length >= 25) {
 			const forPath = f.path;
 			const cands = ranked.slice(0, 16).map((r) => ({ id: r.id, text: store.byId.get(r.id)?.text ?? "" }));
 			void this.plugin.ai.pickRelated(f.basename + ". " + text, cands).then((ids) => {

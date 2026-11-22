@@ -4,6 +4,7 @@ import type ClipsPlugin from "./main";
 import { COLORS, GROUPS, KINDS, SORTS, filterCount, groupHits, runQuery, splitSearch, type Clip, type Hit, type Query } from "./model";
 import { clipCard, iconButton, kindName, ListPicker, TagsModal } from "./ui";
 import { fuzzyMatch, plural } from "./text";
+import { GET_MB } from "./meaning";
 
 export const LIBRARY_VIEW = "clips-library";
 const PAGE = 60;
@@ -160,15 +161,32 @@ export class LibraryView extends ItemView {
 		this.hits = runQuery(store.clips, this.plugin.data.clips, this.q);
 		const words = splitSearch(this.q.text).words.trim();
 		if (words !== this.meaningFor) this.extra = [];
+		// Meaning search on this device is fast, so it runs before the list is drawn.
+		if (words && this.plugin.meaning.usable("search")) this.nearLocal(words);
 		this.drawHead();
 		const scroll = this.listEl.scrollTop;
 		this.draw();
 		if (!reset) this.listEl.scrollTop = scroll;
 		else this.listEl.scrollTop = 0;
-		if (words && this.plugin.ai.usable() && this.plugin.settings.ai.meaning && words !== this.meaningFor) {
+		if (words && this.plugin.ai.usable() && this.plugin.settings.ai.meaning && words !== this.meaningFor && !this.plugin.meaning.usable("search")) {
 			window.clearTimeout(this.meaningTimer);
 			this.meaningTimer = window.setTimeout(() => void this.addMeaning(words), 700);
 		}
+	}
+
+	/** Clips close in meaning, from meaning search on this device. */
+	private nearLocal(words: string) {
+		this.meaningFor = words;
+		const have = new Set(this.hits.map((h) => h.clip.id));
+		const base = runQuery(this.plugin.store.clips, this.plugin.data.clips, { ...this.q, text: this.q.text.replace(words, "").trim() });
+		this.extra = this.plugin.meaning.near(words, base.map((h) => h.clip), have, 40).map((n) => ({ clip: n.clip, score: n.sim, ranges: [] }));
+	}
+
+	/** After meaning search is turned on or off, or its model arrives. */
+	meaningChanged() {
+		this.meaningFor = "";
+		this.extra = [];
+		this.refresh(false);
 	}
 
 	/** Also finds clips close in meaning: other words for the search, matched against your clips. */
@@ -318,11 +336,16 @@ export class LibraryView extends ItemView {
 				return;
 			}
 			const ai = this.plugin.ai.usable();
+			const m = this.plugin.meaning;
+			if (m.state === "getting" || m.state === "loading") {
+				this.empty("Getting the meaning model…", "Then clips that mean the same thing show here.", "", () => undefined);
+				return;
+			}
 			this.empty(
 				"No clips match",
-				ai ? "Try other words, or let AI look for clips that mean the same thing." : "Try other words. With AI set up, it can also find clips that mean the same thing.",
-				ai ? "Find by meaning" : "Set up AI",
-				() => (ai ? void this.findByMeaning(words) : this.plugin.openAiSetup()),
+				ai ? "Try other words, or let AI look for clips that mean the same thing." : `Try other words. Or find clips that mean the same thing. This gets a small model once (${GET_MB} MB).`,
+				"Find by meaning",
+				() => (ai ? void this.findByMeaning(words) : void this.plugin.getMeaning()),
 			);
 			return;
 		}
