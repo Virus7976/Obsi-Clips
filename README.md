@@ -157,6 +157,9 @@ Finds clips that mean the same thing in other words. A search for "terrified" al
 - **Light.** Nothing loads until you search or the side bar needs it. Each clip's meaning takes 128 bytes. Turning it off frees the memory.
 - **On every device.** A phone or computer that syncs your settings gets the model by itself, the first time it needs it. Each device finds meanings for its clips in a moment. Turn off **Get it on other devices** to stop that.
 - **How close**: Close shows fewer clips, very near in meaning. Loose shows more.
+- **Search deeper with AI.** When nothing matches and nothing is close in meaning, and AI is set up, press **Search deeper with AI**. AI is asked only then.
+
+![An empty search offers Search deeper with AI](docs/media/search-deeper.png)
 
 The model is [potion-base-4M](https://huggingface.co/minishlab/potion-base-4M) by Minish Lab (MIT licence). It works best on words and short phrases. It does not understand a whole sentence the way a chat AI does.
 

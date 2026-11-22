@@ -33,6 +33,8 @@ export class LibraryView extends ItemView {
 	private meaningFor = "";
 	/** The search AI is looking at after Find by meaning was pressed. */
 	private meaningLooking = "";
+	/** The search AI looked deeper for, so meaning search on this device does not draw over its results. */
+	private deepFor = "";
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -160,9 +162,12 @@ export class LibraryView extends ItemView {
 		const store = this.plugin.store;
 		this.hits = runQuery(store.clips, this.plugin.data.clips, this.q);
 		const words = splitSearch(this.q.text).words.trim();
-		if (words !== this.meaningFor) this.extra = [];
+		if (words !== this.meaningFor) {
+			this.extra = [];
+			this.deepFor = "";
+		}
 		// Meaning search on this device is fast, so it runs before the list is drawn.
-		if (words && this.plugin.meaning.usable("search")) this.nearLocal(words);
+		if (words && words !== this.deepFor && this.plugin.meaning.usable("search")) this.nearLocal(words);
 		this.drawHead();
 		const scroll = this.listEl.scrollTop;
 		this.draw();
@@ -214,6 +219,11 @@ export class LibraryView extends ItemView {
 			if (best) out.push({ clip: h.clip, score: best, ranges: [] });
 		}
 		out.sort((a, b) => b.score - a.score);
+		// AI's words also find clips close in meaning on this device.
+		if (this.plugin.meaning.ready) {
+			const seen = new Set([...have, ...out.map((h) => h.clip.id)]);
+			for (const n of this.plugin.meaning.near(extraWords.join(" "), base.map((h) => h.clip), seen, 40)) out.push({ clip: n.clip, score: n.sim, ranges: [] });
+		}
 		this.extra = out.slice(0, 40);
 		if (this.extra.length) this.draw();
 	}
@@ -333,12 +343,16 @@ export class LibraryView extends ItemView {
 				this.setQuery({ ...clearFilters(), text: "" });
 			};
 			if (this.meaningLooking === words) {
-				this.empty("Looking by meaning…", "AI is looking for clips that mean the same thing.", "", () => undefined);
+				this.empty("AI is looking…", "For clips that mean the same thing.", "", () => undefined);
 				return;
 			}
 			if (this.meaningFor === words) {
 				const err = this.plugin.ai.lastError;
-				this.empty("Nothing close in meaning either", err ? "AI did not answer. " + err : "Try other words.", "Clear search", clear);
+				if (this.deepFor !== words && this.plugin.ai.usable()) {
+					this.empty("No clips match", "Nothing close in meaning either. AI can look deeper.", "Search deeper with AI", () => void this.findByMeaning(words));
+					return;
+				}
+				this.empty("No clips match", this.deepFor === words ? (err ? "AI did not answer. " + err : "AI found nothing either. Try other words.") : "Nothing close in meaning either. Try other words.", "Clear search", clear);
 				return;
 			}
 			const ai = this.plugin.ai.usable();
@@ -452,6 +466,7 @@ export class LibraryView extends ItemView {
 
 	private async findByMeaning(words: string) {
 		this.meaningLooking = words;
+		this.deepFor = words;
 		this.draw();
 		await this.addMeaning(words);
 		this.meaningLooking = "";

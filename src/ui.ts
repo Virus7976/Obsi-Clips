@@ -78,7 +78,7 @@ export interface CardOptions {
 }
 
 /** One clip as a card: colour bar, text, note, details, tags and actions. */
-/** Clips close in meaning to a search: other words from AI, matched against the clips. Best first. */
+/** Clips close in meaning to a search: other words from AI, matched against the clips. Best first. With meaning search on this device, those words also find clips close in meaning. */
 export async function clipsByMeaning(plugin: ClipsPlugin, query: string, pool: Clip[], skip: Set<string>, asked = false): Promise<Clip[]> {
 	const words = await plugin.ai.meaningWords(query, asked);
 	if (!words.length) return [];
@@ -92,7 +92,12 @@ export async function clipsByMeaning(plugin: ClipsPlugin, query: string, pool: C
 		}
 		if (best) out.push({ c, score: best });
 	}
-	return out.sort((a, b) => b.score - a.score).map((x) => x.c);
+	const found = out.sort((a, b) => b.score - a.score).map((x) => x.c);
+	if (plugin.meaning.ready) {
+		const have = new Set([...skip, ...found.map((c) => c.id)]);
+		for (const n of plugin.meaning.near(words.join(" "), pool, have, 40)) found.push(n.clip);
+	}
+	return found;
 }
 
 export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: CardOptions = {}): HTMLElement {

@@ -155,7 +155,7 @@ export class PanelView extends ItemView {
 					body.createDiv({ cls: "oc-divider", text: "Close in meaning" });
 					for (const n of near) clipCard(body, this.plugin, n.clip, this.look());
 				} else if (meaning.waking) body.createDiv({ cls: "oc-loading oc-pad", text: meaning.state === "getting" ? "Getting the meaning model…" : "Starting meaning search…" });
-				else if (!hits.length) this.empty("No clips match", "Nothing close in meaning either. Try other words.", "", () => undefined);
+				else if (!hits.length) this.deeper(body, query);
 				return;
 			}
 			const m = this.meaning?.query === query ? this.meaning : null;
@@ -299,6 +299,27 @@ export class PanelView extends ItemView {
 		if (this.meaning?.query !== query) return;
 		this.meaning = { query, clips };
 		void this.draw();
+	}
+
+	/** Nothing found on this device: AI can look deeper, when it is set up. */
+	private deeper(body: HTMLElement, query: string) {
+		const m = this.meaning?.query === query ? this.meaning : null;
+		const ai = this.plugin.ai;
+		if (m && !m.clips) {
+			body.createDiv({ cls: "oc-loading oc-pad", text: "AI is looking…" });
+			return;
+		}
+		if (m?.clips?.length) {
+			body.createDiv({ cls: "oc-divider", text: "Found by AI" });
+			for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, this.look());
+			return;
+		}
+		if (m) {
+			this.empty("No clips match", ai.lastError ? "AI did not answer. " + ai.lastError : "AI found nothing either. Try other words.", "", () => undefined);
+			return;
+		}
+		if (ai.usable()) this.empty("No clips match", "Nothing close in meaning either. AI can look deeper.", "Search deeper with AI", () => void this.findByMeaning(query));
+		else this.empty("No clips match", "Nothing close in meaning either. Try other words.", "", () => undefined);
 	}
 
 	private empty(title: string, text: string, button: string, onClick: () => void) {

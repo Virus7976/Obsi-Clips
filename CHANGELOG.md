@@ -1,5 +1,15 @@
 # What's new
 
+## 0.8.2 (22 Nov 2026)
+
+**Search deeper with AI.**
+
+![An empty search offers Search deeper with AI](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.8.2/docs/media/search-deeper.png)
+
+- When nothing matches and nothing is close in meaning, press **Search deeper with AI**. It shows in the side bar and the library when AI is set up.
+- AI gives other words for your search. Clips finds your clips with those words, and with meaning search too.
+- AI is asked only when you press the button.
+
 ## 0.8.1 (22 Nov 2026)
 
 **Meaning search is lighter.**
