@@ -275,6 +275,12 @@ export class LibraryView extends ItemView {
 		el.toggleClass("is-hidden", el.childElementCount === 0);
 	}
 
+	/** Draws the list again, after a look changes in Settings. */
+	redraw() {
+		this.shown = 0;
+		this.draw();
+	}
+
 	private draw() {
 		const list = this.listEl;
 		this.observer?.disconnect();
@@ -376,7 +382,11 @@ export class LibraryView extends ItemView {
 	}
 
 	private card(parent: HTMLElement, h: Hit) {
+		const look = this.plugin.settings.libraryLook;
 		clipCard(parent, this.plugin, h.clip, {
+			compact: look === "compact",
+			quiet: look === "text",
+			textOnly: look === "text",
 			ranges: h.ranges,
 			selected: this.selected.has(h.clip.id),
 			onSelect: this.selecting

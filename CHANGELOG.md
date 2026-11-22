@@ -1,5 +1,19 @@
 # What's new
 
+## 0.7.0 (22 Nov 2026)
+
+**Set it up your way.**
+
+![The Side bar settings](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.7.0/docs/media/settings-sidebar.png)
+
+- **Show more shows all the rest.** Or pick **A few more** in **Settings → Clips → Side bar**.
+- **Find clips again**: when you pause typing, as you type, or only when you open another note.
+- **Clips used in this note**: folded, open or hidden.
+- **Clips for drawings**: off by default, on if you want them.
+- **Library look**: Full, Compact or Text only, in **Settings → Clips → Library**.
+- **Hide clip ids in the editor**: on by default, in **Putting clips in**.
+- **Sort the side bar** with AI is now its own switch, in **AI**.
+
 ## 0.6.0 (22 Nov 2026)
 
 **Pick the side bar's look.**

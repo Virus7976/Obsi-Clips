@@ -2,6 +2,7 @@ import { EMPTY_QUERY, type ClipState, type Query } from "./model";
 
 export type InsertFormat = "quote" | "embed" | "plain";
 export type PanelLook = "calm" | "detailed" | "text";
+export type LibraryLook = "full" | "compact" | "text";
 /** Where AI runs: a service with a key, a model app on this device, or the model in an Obsi app on this phone. */
 export type AiProvider =
 	| "openrouter" | "anthropic" | "openai" | "gemini" | "groq" | "mistral" | "deepseek" | "xai" | "custom"
@@ -18,6 +19,8 @@ export interface AiSettings {
 	keyName: string;
 	/** Search and "For this note" also find clips close in meaning. */
 	meaning: boolean;
+	/** The side bar puts the clips that fit best first, with AI. */
+	order: boolean;
 	/** Tag ideas: only when you ask, or for new untagged clips by themselves. */
 	tags: "tap" | "auto";
 }
@@ -54,6 +57,18 @@ export interface Settings {
 	panelFirst: number;
 	/** The side bar's look: calm two-line clips, detailed cards, or the words alone. */
 	panelLook: PanelLook;
+	/** Show more: all the rest, or the same number again. */
+	panelMore: "all" | "step";
+	/** When the side bar finds clips again: when you pause typing, as you type, or only on another note. */
+	panelUpdate: "pause" | "live" | "switch";
+	/** The clips already used in this note, at the top of the side bar. */
+	panelUsed: "folded" | "open" | "hidden";
+	/** Clips for Excalidraw drawings too. */
+	panelDrawings: boolean;
+	/** How cards look in the library. */
+	libraryLook: LibraryLook;
+	/** Hide the " ^clip-abc" id an embed adds, except on the line with the cursor. */
+	hideIds: boolean;
 	/** Open "For this note" in the side bar when Obsidian starts. */
 	panelOnStart: boolean;
 
@@ -81,6 +96,12 @@ export const DEFAULT_SETTINGS: Settings = {
 	panelCount: 25,
 	panelFirst: 5,
 	panelLook: "calm",
+	panelMore: "all",
+	panelUpdate: "pause",
+	panelUsed: "folded",
+	panelDrawings: false,
+	libraryLook: "full",
+	hideIds: true,
 	panelOnStart: false,
 	query: EMPTY_QUERY,
 	showWhatsNew: true,
@@ -92,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
 		model: "google/gemini-2.5-flash-lite",
 		keyName: "clips-ai",
 		meaning: true,
+		order: true,
 		tags: "tap",
 	},
 };

@@ -73,7 +73,9 @@ export class PanelView extends ItemView {
 			if (f && f.extension === "md") this.follow(f);
 		}));
 		this.registerEvent(this.app.workspace.on("editor-change", (_e, info) => {
-			if (info.file && info.file === this.file) this.soon(8000);
+			if (!info.file || info.file !== this.file) return;
+			const when = this.plugin.settings.panelUpdate;
+			if (when !== "switch") this.soon(when === "live" ? 1500 : 8000);
 		}));
 		this.registerEvent(this.plugin.store.on("change", () => this.soon(200)));
 		this.registerEvent(this.plugin.store.on("state", () => this.soon(200)));
@@ -84,7 +86,7 @@ export class PanelView extends ItemView {
 		if (f === this.file && f) return;
 		this.file = f;
 		this.picks = null;
-		this.showUsed = false;
+		this.showUsed = this.plugin.settings.panelUsed === "open";
 		this.shown = 0;
 		this.soon(50);
 	}
@@ -184,7 +186,7 @@ export class PanelView extends ItemView {
 
 		// A drawing is not writing: no clips for it, but search still works.
 		const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
-		if (f.path.endsWith(".excalidraw.md") || fm?.["excalidraw-plugin"] !== undefined) {
+		if (!this.plugin.settings.panelDrawings && (f.path.endsWith(".excalidraw.md") || fm?.["excalidraw-plugin"] !== undefined)) {
 			this.empty("A drawing", "Clips show for notes you write. Search above to find one.", "", () => undefined);
 			return;
 		}
@@ -209,7 +211,7 @@ export class PanelView extends ItemView {
 		head.createDiv({ cls: "oc-panel-title", text: "For this note" });
 		head.createDiv({ cls: "oc-panel-sub", text: f.basename });
 
-		if (usedHere.length) {
+		if (usedHere.length && this.plugin.settings.panelUsed !== "hidden") {
 			const sec = body.createDiv({ cls: "oc-used-here" + (this.showUsed ? " is-open" : "") });
 			const h = sec.createEl("button", { cls: "oc-used-here-head", attr: { type: "button", "aria-expanded": String(this.showUsed) } });
 			setIcon(h.createSpan({ cls: "oc-group-chev" }), "chevron-right");
@@ -229,15 +231,15 @@ export class PanelView extends ItemView {
 			if (c) clipCard(body, this.plugin, c, this.look(r.why));
 		}
 		if (order.length < max) {
-			const more = body.createEl("button", { cls: "oc-link-btn oc-more", text: `Show ${Math.min(this.step, max - order.length)} more`, attr: { type: "button" } });
+			const more = body.createEl("button", { cls: "oc-link-btn oc-more", text: this.plugin.settings.panelMore === "all" ? `Show all ${max}` : `Show ${Math.min(this.step, max - order.length)} more`, attr: { type: "button" } });
 			more.addEventListener("click", () => {
-				this.shown = (this.shown || this.step) + this.step;
+				this.shown = this.plugin.settings.panelMore === "all" ? max : (this.shown || this.step) + this.step;
 				void this.draw();
 			});
 		}
 
 		// Quietly reorder by meaning when AI is set up: once per note, after the text settles.
-		if (this.plugin.ai.usable() && this.plugin.settings.ai.meaning && !this.picks && ranked.length >= 3 && text.split(/\s+/).length >= 25) {
+		if (this.plugin.ai.usable() && this.plugin.settings.ai.meaning && this.plugin.settings.ai.order && !this.picks && ranked.length >= 3 && text.split(/\s+/).length >= 25) {
 			const forPath = f.path;
 			const cands = ranked.slice(0, 16).map((r) => ({ id: r.id, text: store.byId.get(r.id)?.text ?? "" }));
 			void this.plugin.ai.pickRelated(f.basename + ". " + text, cands).then((ids) => {

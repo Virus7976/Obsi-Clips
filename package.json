@@ -1,6 +1,6 @@
 {
 	"name": "clips",
-	"version": "0.6.0",
+	"version": "0.7.0",
 	"description": "Use your clips: find the right highlight while you write, see how often each one is used, and bring back the ones you forgot.",
 	"main": "main.js",
 	"private": true,

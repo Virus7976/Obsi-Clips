@@ -32,6 +32,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 		const toggle = (name: string, desc: string, key: string): SettingDefinition => ({ name, desc, control: { type: "toggle", key } });
 		const slider = (name: string, desc: string, key: string, min: number, max: number, step = 1): SettingDefinition => ({ name, desc, control: { type: "slider", key, min, max, step } });
+		const dropdown = (name: string, desc: string, key: string, options: Record<string, string>): SettingDefinition => ({ name, desc, control: { type: "dropdown", key, options } });
 		const store = this.plugin.store;
 		const ai = this.plugin.ai;
 
@@ -112,6 +113,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 									{ name: "Callout type", desc: "The callout a quote uses, like quote or cite.", control: { type: "text", key: "calloutType", placeholder: "quote" } },
 									toggle("Add the time or page", "A quote links the moment in the video or the page in the book.", "insertWhere"),
 									toggle("Add my note", "Your note on the clip goes under the quote.", "insertNote"),
+									toggle("Hide clip ids in the editor", "An embed adds a short id like ^clip-abc to the clip's line. Hidden unless the cursor is on that line.", "hideIds"),
 								],
 							},
 						],
@@ -124,7 +126,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 							{
 								type: "group",
 								items: [
-									toggle("Pasted text counts", "A note that holds the clip's words counts as a use, not only embeds and links. 8 words in a row is enough for a long clip. Notes in your clip folders do not count.", "countQuotes"),
+									toggle("Pasted text counts", "A note that holds the clip's words counts as a use, not only embeds and links. 8 words in a row is enough for a long clip. A clip's own note never counts.", "countQuotes"),
 									toggle("Show uses in clip notes", "\"Used 3×\" after each used clip in your clip notes.", "badges"),
 									{ name: "Count uses again", desc: "Read every note again now.", action: () => void store.rebuild().then(() => new Notice("Uses counted")) },
 								],
@@ -174,19 +176,47 @@ export class ClipsSettingTab extends PluginSettingTab {
 					},
 					{
 						type: "page",
-						name: "Side bar",
-						desc: "Clips for the note you are writing.",
+						name: "Library",
+						desc: "How clips look in the library.",
+						displayValue: () => ({ full: "Full", compact: "Compact", text: "Text only" })[s.libraryLook],
 						items: [
 							{
 								type: "group",
 								items: [
-									{
-										name: "Look",
-										desc: "Calm: two lines and the source. Detailed: more text, uses and why it fits. Text only: just the words.",
-										control: { type: "dropdown", key: "panelLook", options: { calm: "Calm", detailed: "Detailed", text: "Text only" } },
-									},
+									dropdown("Card look", "Full: the whole clip, your note, tags and details. Compact: shorter cards. Text only: just the words.", "libraryLook", { full: "Full", compact: "Compact", text: "Text only" }),
+								],
+							},
+						],
+					},
+					{
+						type: "page",
+						name: "Side bar",
+						desc: "Clips for the note you are writing.",
+						displayValue: () => ({ calm: "Calm", detailed: "Detailed", text: "Text only" })[s.panelLook],
+						items: [
+							{
+								type: "group",
+								heading: "Look",
+								items: [
+									dropdown("Card look", "Calm: two lines and the source. Detailed: more text, uses and why it fits. Text only: just the words.", "panelLook", { calm: "Calm", detailed: "Detailed", text: "Text only" }),
+									dropdown("Clips used in this note", "The clips you already put in this note, at the top. Folded: one line you can open.", "panelUsed", { folded: "Folded", open: "Open", hidden: "Hidden" }),
+								],
+							},
+							{
+								type: "group",
+								heading: "How many",
+								items: [
 									slider("Clips at first", "How many clips show before Show more.", "panelFirst", 3, 20, 1),
-									slider("Most clips shown", "The most clips Show more can reach.", "panelCount", 5, 60, 5),
+									dropdown("Show more shows", "All the rest: every clip that fits, up to the most below. A few more: the same number again.", "panelMore", { all: "All the rest", step: "A few more" }),
+									slider("Most clips listed", "The most clips the side bar lists for one note.", "panelCount", 5, 60, 5),
+								],
+							},
+							{
+								type: "group",
+								heading: "When",
+								items: [
+									dropdown("Find clips again", "When I pause: a few seconds after you stop typing. As I type: often while you write. On another note: only when you open a different note.", "panelUpdate", { pause: "When I pause", live: "As I type", switch: "On another note" }),
+									toggle("Clips for drawings", "Show clips for Excalidraw drawings too.", "panelDrawings"),
 									toggle("Open when Obsidian starts", "Show the side bar on start.", "panelOnStart"),
 								],
 							},
@@ -217,6 +247,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 										visible: () => !!s.ai.baseUrl,
 									},
 									{ ...toggle("Find by meaning", "Search and the side bar also find clips close in meaning, not only the same words.", "ai.meaning"), visible: () => s.ai.on },
+									{ ...toggle("Sort the side bar", "AI puts the clips that fit your note best at the top. Once per note.", "ai.order"), visible: () => s.ai.on && s.ai.meaning },
 									{
 										name: "Tag ideas",
 										desc: "When I tap: ideas show in Edit tags. By themselves: new clips with no tags get tags in the background.",

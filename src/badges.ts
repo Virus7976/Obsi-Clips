@@ -52,7 +52,7 @@ export function badgeExtension(plugin: ClipsPlugin): Extension {
 				const doc = view.state.doc;
 				// The clip's own block id (" ^clip-abc", added for an embed) is hidden in live preview,
 				// except on the line with the cursor, so it can still be seen and edited.
-				if (view.state.field(editorLivePreviewField, false)) {
+				if (plugin.settings.hideIds && view.state.field(editorLivePreviewField, false)) {
 					const busy = new Set(view.state.selection.ranges.flatMap((r) => [doc.lineAt(r.from).number, doc.lineAt(r.to).number]));
 					for (const { from, to } of view.visibleRanges) {
 						for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {

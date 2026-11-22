@@ -113,8 +113,9 @@ export default class ClipsPlugin extends Plugin {
 	settingChanged(key: string) {
 		if (["marks", "plainQuotes", "minWords", "countQuotes", "scope", "ignoreFolders"].includes(key)) void this.store.rebuild();
 		if (key === "scope" && this.store.needsFolders) this.openSetup();
-		if (key === "badges") redrawBadges(this);
-		if (key === "panelLook" || key === "panelFirst" || key === "panelCount") this.redrawPanel();
+		if (key === "badges" || key === "hideIds") redrawBadges(this);
+		if (key.startsWith("panel") || key === "ai.order") this.redrawPanel();
+		if (key === "libraryLook") for (const leaf of this.app.workspace.getLeavesOfType(LIBRARY_VIEW)) if (leaf.view instanceof LibraryView) leaf.view.redraw();
 		if (key === "statusBar") {
 			if (this.settings.statusBar && !Platform.isMobile) this.makeStatus();
 			else {

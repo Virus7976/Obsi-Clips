@@ -40,7 +40,7 @@ Everything else is in the library's **⋯** menu, the right-click menu in a note
 
 ### Clips for this note
 
-The side bar reads the note you are writing and shows the 5 clips that fit it best. Press **Show 5 more** for more. Each clip is two lines and its source. It does not change while you type: it updates when you stop for a few seconds. Clips you already used in this note are in their own list at the top. Drawings get no clips.
+The side bar reads the note you are writing and shows the 5 clips that fit it best. Press **Show all** to see the rest. Each clip is two lines and its source. It does not change while you type: it updates when you stop for a few seconds. Clips you already used in this note are in their own list at the top. Drawings get no clips.
 
 Pick the look in **Settings → Clips → Side bar → Look**: **Calm** (two lines and the source), **Detailed** (more text, uses, and why it fits) or **Text only** (just the words). **Clips at first** sets how many show before Show more.
 
@@ -191,6 +191,8 @@ While Obsidian may use the phone's model, the Obsi app shows a small notificatio
 
 ## Settings
 
+- **Library**: Full, Compact or Text only cards.
+- **Side bar**: card look, clips used in this note, clips at first, what Show more shows, the most clips listed, when it finds clips again, clips for drawings, and open on start.
 - **Where clips are**: the whole vault or only some folders, marked text, plain quotes, and the shortest clip to count.
 - **Putting clips in**: quote, embed or plain text, the callout type, and whether to add your note and where it came from.
 - **Counting uses**: pasted text counts or not, folders to ignore, and the **Used 3×** marks.
