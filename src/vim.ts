@@ -30,6 +30,8 @@ export interface KeyPlace {
 	search: HTMLInputElement;
 	/** Draws every card, for a list that draws a page at a time. */
 	all?: () => void;
+	/** Searches deeper with AI. False when it cannot now. */
+	deeper?: () => boolean;
 }
 
 /** Key presses that wait for a second key: "gg" and "za". */
@@ -199,6 +201,11 @@ export function searchKeys(at: KeyPlace, clear: () => void): (e: KeyboardEvent) 
 	return (e: KeyboardEvent) => {
 		if (e.isComposing) return;
 		const first = () => cardsIn(at.list)[0];
+		// "Enter searches deeper with AI" in Settings: Enter asks AI, and the list moves to what it finds.
+		if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && at.plugin.settings.ai.enter && at.deeper?.()) {
+			e.preventDefault();
+			return;
+		}
 		if (e.key === "ArrowDown" || (e.key === "Enter" && at.plugin.settings.vimKeys)) {
 			const c = first();
 			if (!c) return;

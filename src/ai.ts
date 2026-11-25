@@ -6,9 +6,10 @@ import { addressProblem } from "./safety";
 import { PHONE_SECRET, PROVIDERS, type AiSettings, type PluginData } from "./settings";
 
 const MAX_MEMO = 400;
-/** Search deeper: how many likely clips AI reads, and how much of each. */
-const FIND_MAX = 36;
-const FIND_CUT = 140;
+/** Search deeper: how many likely clips AI reads, how much of each, and how many in one ask. */
+const FIND_MAX = 60;
+const FIND_CUT = 180;
+const FIND_BATCH = 30;
 
 /** What one call needs: where it goes and which model. */
 export type AiTarget = Pick<AiSettings, "provider" | "app" | "baseUrl" | "model">;
@@ -215,58 +216,80 @@ export class Ai {
 		this.save();
 	}
 
-	/** Other words for what a search means, so a search for "fear" also finds "courage". */
+	/**
+	 * Other words for what a search means, so a search for "fear" also finds "courage". It asks for the idea behind the
+	 * search too: the words a quote on that topic would use, for it or against it, and who might have said it.
+	 */
 	async meaningWords(query: string, asked = false): Promise<string[]> {
 		const q = query.trim().toLowerCase().slice(0, 200);
 		// "asked": the person pressed Find by meaning, so it runs even with Find by meaning turned off.
 		if (!q || !this.usable() || (!this.s.meaning && !asked)) return [];
 		const memo = this.data().memo.words;
-		// "2|": the ask changed in 0.9.1 (names of people and books), so old answers are asked again.
-		const key = hashId("2|" + q);
+		// "3|": the ask changed in 0.9.2 (the idea behind the search), so old answers are asked again.
+		const key = hashId("3|" + q);
 		if (memo[key]) return memo[key];
 		return this.once("w" + key, async () => {
 			const out = await this.askJson<{ words?: unknown }>(
-				"You help a person search their own saved quotes. Give other words for what this search means: close words, " +
-					"related ideas, and the plain words a quote about it would use. When the search hints at who said it, add the likely " +
-					"names of people or books, like plato or nietzsche. The person may remember it wrong. Single words only, lowercase. " +
-					'Answer with JSON only: {"words": ["..."]} with 6 to 10 words.',
+				"You help a person search their own saved quotes from books. First find the topic behind the search. " +
+					"Then give the plain words that quotes on that topic use, for it or against it: the people, roles and " +
+					"actions in them. Example: for 'is money the root of evil' give greed, wealth, rich, poor, gold, love, sin, coin. When the search hints at who said it, add the likely names of people or books. " +
+					"The person may remember it wrong. Single words only, lowercase. " +
+					'Answer with JSON only: {"words": ["..."]} with 8 to 14 words.',
 				q,
-				80,
+				110,
 			);
-			const words = Array.isArray(out?.words) ? out.words.filter((w): w is string => typeof w === "string").map((w) => w.toLowerCase().trim()).filter((w) => w && !w.includes(" ")).slice(0, 10) : [];
+			const words = Array.isArray(out?.words) ? out.words.filter((w): w is string => typeof w === "string").map((w) => w.toLowerCase().trim()).filter((w) => w && !w.includes(" ")).slice(0, 14) : [];
 			if (words.length) this.remember(memo, key, words);
 			return words;
 		});
 	}
 
 	/**
-	 * Search deeper: AI reads a short list of likely clips and keeps only the ones that truly fit the search.
-	 * Each clip is cut short, so a search costs about 1,500 tokens. Remembered, so the same search costs nothing again.
-	 * Returns null when AI did not answer.
+	 * Search deeper: AI reads a list of likely clips and keeps the ones about the same topic, best first.
+	 * Each clip is cut short and sent in asks of 30, so a search costs about 1,500 tokens per 30 clips.
+	 * Remembered, so the same search costs nothing again. Returns null when AI did not answer.
 	 */
 	async findClips(query: string, clips: { id: string; text: string; source: string }[]): Promise<string[] | null> {
 		const q = query.replace(/\s+/g, " ").trim().slice(0, 200);
 		if (!q || !this.usable() || !clips.length) return clips.length ? null : [];
 		const list = clips.slice(0, FIND_MAX);
-		const key = hashId("f|" + q.toLowerCase() + "|" + list.map((c) => c.id).join(","));
+		const key = hashId("f2|" + q.toLowerCase() + "|" + list.map((c) => c.id).join(","));
 		const memo = this.data().memo.picks;
 		if (memo[key]) return memo[key];
 		return this.once("f" + key, async () => {
-			const user = "I am looking for: " + q + "\n\nMy saved quotes:\n" + list.map((c, i) => `${i + 1}. ${cut(c.text.replace(/\s+/g, " "), FIND_CUT)} (${cut(c.source, 40)})`).join("\n");
-			const out = await this.askJson<{ ids?: unknown }>(
-				"A person searches their own saved quotes. Pick the numbered quotes that are about what they are looking for, " +
-					"even in other words. They may remember it wrong or only in part: match the idea, the context and who said it " +
-					"(the source is in brackets). Leave out quotes that only share a word with the search, or are about something else. " +
-					"Best first. If none fit, give an empty list. " +
-					'Answer with JSON only: {"ids": [numbers]}.',
-				user,
-				80,
-			);
-			if (!Array.isArray(out?.ids)) return null;
-			const ids = [...new Set(out.ids.map((n) => (typeof n === "number" ? n : parseInt(String(n), 10))).filter((n) => n >= 1 && n <= list.length).map((n) => list[n - 1].id))];
+			// Even asks: 34 clips go as 17 and 17, not 30 and 4.
+			const n = Math.ceil(list.length / FIND_BATCH);
+			const size = Math.ceil(list.length / n);
+			const asks: Promise<{ best: string[]; also: string[] } | null>[] = [];
+			for (let at = 0; at < list.length; at += size) asks.push(this.pickFrom(q, list.slice(at, at + size)));
+			const got = await Promise.all(asks);
+			if (got.every((g) => !g)) return null;
+			// The best from every ask first, then the ones that touch the topic in part.
+			const ids = [...new Set([...got.flatMap((g) => g?.best ?? []), ...got.flatMap((g) => g?.also ?? [])])];
 			this.remember(memo, key, ids);
 			return ids;
 		});
+	}
+
+	/** One ask of search deeper: the numbered clips that fit best, and the ones that also fit. */
+	private async pickFrom(q: string, list: { id: string; text: string; source: string }[]): Promise<{ best: string[]; also: string[] } | null> {
+		const user = "I am looking for: " + q + "\n\nMy saved quotes:\n" + list.map((c, i) => `${i + 1}. ${cut(c.text.replace(/\s+/g, " "), FIND_CUT)} (${cut(c.source, 40)})`).join("\n");
+		const out = await this.askJson<{ best?: unknown; also?: unknown }>(
+			"A person searches their own saved quotes. Write the topic they mean in a few words. Then pick the numbered quotes " +
+				"that are about that topic, even in other words. A quote that agrees, disagrees, or shows the same idea in a story fits. " +
+				"They may remember it wrong or only in part: match the idea, the context and who said it (the source is in brackets). " +
+				"Most quotes will not fit. A quote fits only when a reader would say it is about the topic, not when it only shares " +
+				'a word or a wider field with it. "best": the quotes that clearly fit, best first. "also": quotes that touch the ' +
+				"topic in part. Either list can be empty. " +
+				'Answer with JSON only: {"topic": "...", "best": [numbers], "also": [numbers]}.',
+			user,
+			160,
+		);
+		if (!out) return null;
+		const ids = (v: unknown) =>
+			Array.isArray(v) ? v.map((n) => (typeof n === "number" ? n : parseInt(String(n), 10))).filter((n) => n >= 1 && n <= list.length).map((n) => list[n - 1].id) : [];
+		if (!Array.isArray(out.best) && !Array.isArray(out.also)) return null;
+		return { best: ids(out.best), also: ids(out.also) };
 	}
 
 	/**

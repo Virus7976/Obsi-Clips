@@ -1,5 +1,18 @@
 # What's new
 
+## 0.9.2 (25 Nov 2026)
+
+**Search deeper with AI finds much more, and Enter can start it.**
+
+![Enter in search: AI's finds, with no scrolling](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.9.2/docs/media/search-deeper-enter.png)
+
+- AI now looks for the topic behind your search, not only its words. "Who should be in charge at home" finds quotes about husbands, wives and who rules, for it and against it.
+- AI reads more of your clips. A small library goes to AI whole. The best fits come first.
+- In a test with 68 book quotes and 12 searches, AI found 78% of the right clips. Before, it found 39%.
+- New setting: **Enter searches deeper** (Settings → AI). Press Enter in a search, and the list moves to what AI finds. No scrolling.
+- New command: **Search deeper with AI**. Give it any key in Settings → Hotkeys.
+- About 1,500 tokens for each 30 clips. The same search again costs nothing.
+
 ## 0.9.1 (22 Nov 2026)
 
 **Search deeper with AI finds the right clips.**

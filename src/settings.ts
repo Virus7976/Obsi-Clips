@@ -21,6 +21,8 @@ export interface AiSettings {
 	meaning: boolean;
 	/** The side bar puts the clips that fit best first, with AI. */
 	order: boolean;
+	/** Enter in a search box searches deeper with AI. */
+	enter: boolean;
 	/** Tag ideas: only when you ask, or for new untagged clips by themselves. */
 	tags: "tap" | "auto";
 }
@@ -132,6 +134,7 @@ export const DEFAULT_SETTINGS: Settings = {
 		keyName: "clips-ai",
 		meaning: true,
 		order: true,
+		enter: false,
 		tags: "tap",
 	},
 	index: { on: false, search: true, sidebar: true, near: "some", auto: true },

@@ -210,6 +210,18 @@ export default class ClipsPlugin extends Plugin {
 		this.addCommand({ id: "open-library", name: "Open library", callback: () => this.openLibrary({}, true) });
 		this.addCommand({ id: "open-panel", name: "Search in side bar", callback: () => void this.searchPanel() });
 		this.addCommand({ id: "review", name: "Review", callback: () => this.openReview(true) });
+		// No key by default: set one in Settings > Hotkeys. Works while the cursor is in a search box.
+		this.addCommand({ id: "search-deeper", name: "Search deeper with AI", checkCallback: (checking) => this.searchDeeper(checking) });
+	}
+
+	/** The open library or side bar searches deeper with AI: the one in use first. */
+	private searchDeeper(checking: boolean): boolean {
+		const ws = this.app.workspace;
+		const views = [ws.getActiveViewOfType(LibraryView), ws.getActiveViewOfType(PanelView), ...ws.getLeavesOfType(LIBRARY_VIEW).map((l) => l.view), ...ws.getLeavesOfType(PANEL_VIEW).map((l) => l.view)];
+		const view = views.find((v): v is LibraryView | PanelView => (v instanceof LibraryView || v instanceof PanelView) && v.hasSearch());
+		if (!view || !this.ai.usable()) return false;
+		if (!checking) view.searchDeeper();
+		return true;
 	}
 
 	/**

@@ -25,7 +25,7 @@ All buttons on a phone are big enough to tap. Card buttons are always visible, n
 
 ## Commands
 
-Four commands, so they are easy to put on keys. Set keys in **Settings → Hotkeys**: search for "Clips".
+Five commands, so they are easy to put on keys. Set keys in **Settings → Hotkeys**: search for "Clips".
 
 | Command | What it does |
 |---|---|
@@ -33,6 +33,7 @@ Four commands, so they are easy to put on keys. Set keys in **Settings → Hotke
 | **Open library** | Opens the library, or goes to it, with the cursor in its search. |
 | **Search in side bar** | Opens the side bar with the cursor in its search, even while you write in a note. Escape clears the search, and Escape again goes back to your note. |
 | **Review** | Today's clips. When they are done, a few more. |
+| **Search deeper with AI** | With AI set up, AI looks deeper for what is in the search box of the library or side bar, and the list moves to what it finds. It has no key of its own: give it one here. |
 
 Everything else is in the library's **⋯** menu, the right-click menu in a note, and Settings.
 
@@ -187,7 +188,7 @@ Finds clips that mean the same thing in other words. A search for "terrified" al
 - **Light.** Nothing loads until you search or the side bar needs it. Each clip's meaning takes 128 bytes. Turning it off frees the memory.
 - **On every device.** A phone or computer that syncs your settings gets the model by itself, the first time it needs it. Each device finds meanings for its clips in a moment. Turn off **Get it on other devices** to stop that.
 - **How close**: Close shows fewer clips, very near in meaning. Loose shows more.
-- **Search deeper with AI.** With AI set up, **Search deeper with AI** shows under the results, or as a button when nothing is found. Clips gathers about 36 likely clips, and AI reads them with where each is from and keeps only the ones that fit. Search the way you remember it, even if you remember it wrong. AI's finds show under **Found by AI**. About 1,500 tokens for each search, and AI is asked only when you press it.
+- **Search deeper with AI.** With AI set up, **Search deeper with AI** shows under the results, or as a button when nothing is found. AI looks for the topic behind your search, not only its words, and keeps the clips on that topic, for it or against it, best first. A small library goes to AI whole; in a big one, Clips first gathers about 60 likely clips. Search the way you remember it, even if you remember it wrong. AI's finds show under **Found by AI**. About 1,500 tokens for each 30 clips, and AI is asked only when you ask. Turn on **Enter searches deeper** in Settings → AI to ask with Enter, or set a key for the **Search deeper with AI** command; the list then moves to what AI finds.
 
 ![An empty search offers Search deeper with AI](docs/media/search-deeper.png)
 

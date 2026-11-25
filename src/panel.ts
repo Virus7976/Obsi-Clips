@@ -56,7 +56,7 @@ export class PanelView extends ItemView {
 		this.searchEl = search.createEl("input", { attr: { type: "search", placeholder: "Search all clips", "aria-label": "Search all clips", enterkeyhint: "search" } });
 		this.searchEl.addEventListener("input", () => void this.draw());
 		this.bodyEl = root.createDiv({ cls: "oc-panel-body" });
-		const keys = { plugin: this.plugin, list: this.bodyEl, search: this.searchEl };
+		const keys = { plugin: this.plugin, list: this.bodyEl, search: this.searchEl, deeper: () => this.searchDeeper() };
 		this.registerDomEvent(this.searchEl, "keydown", searchKeys(keys, () => {
 			this.searchEl.value = "";
 			void this.draw();
@@ -169,11 +169,11 @@ export class PanelView extends ItemView {
 			}
 			const m = this.meaning?.query === query ? this.meaning : null;
 			if (m) {
-				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad", text: "AI is looking…" });
+				if (!m.clips) body.createDiv({ cls: "oc-loading oc-pad oc-ai-start", text: "AI is looking…" });
 				else if (!m.clips.length)
-					body.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "Nothing close in meaning either. Try other words." });
+					body.createDiv({ cls: "oc-muted oc-pad oc-ai-start", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "Nothing close in meaning either. Try other words." });
 				else {
-					body.createDiv({ cls: "oc-divider", text: "Found by AI" });
+					body.createDiv({ cls: "oc-divider oc-ai-start", text: "Found by AI" });
 					for (const c of m.clips.slice(0, 40)) clipCard(body, this.plugin, c, this.look());
 				}
 			} else if (!hits.length) {
@@ -299,15 +299,42 @@ export class PanelView extends ItemView {
 		this.searchEl.select();
 	}
 
-	private async findByMeaning(query: string) {
+	/** Something is typed in the search box. */
+	hasSearch(): boolean {
+		return !!this.searchEl?.value.trim();
+	}
+
+	/**
+	 * Search deeper with AI for what is in the search box, from Enter or the command. The list moves to the part
+	 * AI fills, so there is no scrolling down. False when there is no search, no AI, or AI has looked already.
+	 */
+	searchDeeper(): boolean {
+		const query = this.searchEl?.value.trim();
+		if (!query || !this.plugin.ai.usable()) return false;
+		if (this.meaning?.query === query) {
+			this.showAi();
+			return true;
+		}
+		void this.findByMeaning(query, true);
+		return true;
+	}
+
+	/** Moves the list to where AI's part starts. */
+	private showAi() {
+		this.bodyEl.querySelector(".oc-ai-start")?.scrollIntoView({ block: "start" });
+	}
+
+	private async findByMeaning(query: string, jump = false) {
 		this.meaning = { query, clips: null };
-		void this.draw();
+		await this.draw();
+		if (jump) this.showAi();
 		const store = this.plugin.store;
 		const pool = store.clips.filter((c) => !store.state(c.id).arch);
 		const clips = await aiFind(this.plugin, query, pool, new Set(this.shownIds));
 		if (this.meaning?.query !== query) return;
 		this.meaning = { query, clips: clips ?? [] };
-		void this.draw();
+		await this.draw();
+		if (jump) this.showAi();
 	}
 
 	/**
@@ -320,16 +347,16 @@ export class PanelView extends ItemView {
 		const none = shown.size === 0;
 		this.shownIds = shown;
 		if (m && !m.clips) {
-			body.createDiv({ cls: "oc-loading oc-pad", text: "AI is looking…" });
+			body.createDiv({ cls: "oc-loading oc-pad oc-ai-start", text: "AI is looking…" });
 			return;
 		}
 		if (m) {
 			const fresh = (m.clips ?? []).filter((c) => !shown.has(c.id));
 			if (fresh.length) {
-				body.createDiv({ cls: "oc-divider", text: "Found by AI" });
+				body.createDiv({ cls: "oc-divider oc-ai-start", text: "Found by AI" });
 				for (const c of fresh.slice(0, 40)) clipCard(body, this.plugin, c, this.look());
 			} else if (none) this.empty("No clips match", ai.lastError ? "AI did not answer. " + ai.lastError : "AI found nothing either. Try other words.", "", () => undefined);
-			else body.createDiv({ cls: "oc-muted oc-pad", text: ai.lastError ? "AI did not answer. " + ai.lastError : "AI found nothing more." });
+			else body.createDiv({ cls: "oc-muted oc-pad oc-ai-start", text: ai.lastError ? "AI did not answer. " + ai.lastError : "AI found nothing more." });
 			return;
 		}
 		if (!ai.usable()) {

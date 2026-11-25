@@ -111,7 +111,7 @@ export class LibraryView extends ItemView {
 		this.selectBar = head.createDiv({ cls: "oc-select-bar is-hidden" });
 		this.countEl = root.createDiv({ cls: "oc-count" });
 		this.listEl = root.createDiv({ cls: "oc-list", attr: { role: "feed", "aria-label": "Clips" } });
-		const keys = { plugin: this.plugin, list: this.listEl, search: this.searchEl, all: () => this.more?.(Infinity) };
+		const keys = { plugin: this.plugin, list: this.listEl, search: this.searchEl, all: () => this.more?.(Infinity), deeper: () => this.searchDeeper() };
 		this.registerDomEvent(this.searchEl, "keydown", searchKeys(keys, () => {
 			this.searchEl.value = "";
 			clear.addClass("is-hidden");
@@ -434,16 +434,16 @@ export class LibraryView extends ItemView {
 			}
 		}
 		if (this.deep.length) {
-			queue.push(() => list.createDiv({ cls: "oc-divider", text: "Found by AI" }));
+			queue.push(() => list.createDiv({ cls: "oc-divider oc-ai-start", text: "Found by AI" }));
 			for (const h of this.deep) queue.push(() => this.card(list, h));
 		}
 		// Under the results: AI can look deeper, when it is set up and has not looked already.
 		const aiLooked = this.plugin.settings.ai.meaning && !this.plugin.meaning.usable("search");
 		if (words && this.plugin.ai.usable() && !aiLooked) {
-			if (this.meaningLooking === words) queue.push(() => list.createDiv({ cls: "oc-muted oc-pad", text: "AI is looking…" }));
+			if (this.meaningLooking === words) queue.push(() => list.createDiv({ cls: "oc-muted oc-pad oc-ai-start", text: "AI is looking…" }));
 			else if (this.deepFor !== words)
 				queue.push(() => list.createEl("button", { cls: "oc-link-btn oc-deeper", text: "Search deeper with AI", attr: { type: "button" } }).addEventListener("click", () => void this.findByMeaning(words)));
-			else if (!this.deep.length) queue.push(() => list.createDiv({ cls: "oc-muted oc-pad", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "AI found nothing more." }));
+			else if (!this.deep.length) queue.push(() => list.createDiv({ cls: "oc-muted oc-pad oc-ai-start", text: this.plugin.ai.lastError ? "AI did not answer. " + this.plugin.ai.lastError : "AI found nothing more." }));
 		}
 		const more = (n = PAGE) => {
 			const until = Math.min(queue.length, this.shown + n);
@@ -486,14 +486,39 @@ export class LibraryView extends ItemView {
 		if (button) box.createEl("button", { cls: "mod-cta", text: button }).addEventListener("click", onClick);
 	}
 
-	private async findByMeaning(words: string) {
+	/** Something is typed in the search box. */
+	hasSearch(): boolean {
+		return !!splitSearch(this.q.text).words.trim();
+	}
+
+	/**
+	 * Search deeper with AI for the words in the search box, from Enter or the command. The list moves to the part
+	 * AI fills, so there is no scrolling down. False when there is no search or no AI.
+	 */
+	searchDeeper(): boolean {
+		const words = splitSearch(this.q.text).words.trim();
+		if (!words || !this.plugin.ai.usable()) return false;
+		if (this.deepFor === words && !this.meaningLooking) this.showAi();
+		else if (this.deepFor !== words) void this.findByMeaning(words, true);
+		return true;
+	}
+
+	/** Draws the whole list, then moves it to where AI's part starts. */
+	private showAi() {
+		this.more?.(Infinity);
+		this.listEl.querySelector(".oc-ai-start")?.scrollIntoView({ block: "start" });
+	}
+
+	private async findByMeaning(words: string, jump = false) {
 		this.meaningLooking = words;
 		this.deepFor = words;
 		this.draw();
+		if (jump) this.showAi();
 		await this.addMeaning(words);
 		this.meaningLooking = "";
 		this.meaningFor = words;
 		this.draw();
+		if (jump && this.deepFor === words) this.showAi();
 	}
 
 	focusSearch() {

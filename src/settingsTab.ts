@@ -323,6 +323,7 @@ export class ClipsSettingTab extends PluginSettingTab {
 										visible: () => !!s.ai.baseUrl,
 									},
 									{ ...toggle("Find by meaning", "Search and the side bar also find clips close in meaning, not only the same words.", "ai.meaning"), visible: () => s.ai.on },
+									{ ...toggle("Enter searches deeper", "Enter in a search box asks AI to look deeper, and the list moves to what it finds. To use a key of your own, set one for Search deeper with AI in Hotkeys.", "ai.enter"), visible: () => s.ai.on },
 									{ ...toggle("Sort the side bar", "AI puts the clips that fit your note best at the top. Once per note.", "ai.order"), visible: () => s.ai.on && s.ai.meaning },
 									{
 										name: "Tag ideas",
