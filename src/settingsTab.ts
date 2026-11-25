@@ -323,6 +323,15 @@ export class ClipsSettingTab extends PluginSettingTab {
 										visible: () => !!s.ai.baseUrl,
 									},
 									{ ...toggle("Find by meaning", "Search and the side bar also find clips close in meaning, not only the same words.", "ai.meaning"), visible: () => s.ai.on },
+									{
+										...dropdown(
+											"Search deeper reads",
+											`Every clip: AI skims all your clips, then reads the ones that may fit. About ${Math.max(1, Math.round((store.clips.length * 35) / 1000)).toLocaleString()},000 tokens a search for your ${store.clips.length.toLocaleString()} clips. Likely clips: AI reads only the 60 clips this device thinks fit best. About 3,000 tokens, but it can miss some.`,
+											"ai.depth",
+											{ all: "Every clip", likely: "Likely clips" },
+										),
+										visible: () => s.ai.on,
+									},
 									{ ...toggle("Enter searches deeper", "Enter in a search box asks AI to look deeper, and the list moves to what it finds. To use a key of your own, set one for Search deeper with AI in Hotkeys.", "ai.enter"), visible: () => s.ai.on },
 									{ ...toggle("Sort the side bar", "AI puts the clips that fit your note best at the top. Once per note.", "ai.order"), visible: () => s.ai.on && s.ai.meaning },
 									{

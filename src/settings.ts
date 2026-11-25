@@ -23,6 +23,8 @@ export interface AiSettings {
 	order: boolean;
 	/** Enter in a search box searches deeper with AI. */
 	enter: boolean;
+	/** Search deeper reads every clip, or only the 60 likely ones (fewer tokens). */
+	depth: "all" | "likely";
 	/** Tag ideas: only when you ask, or for new untagged clips by themselves. */
 	tags: "tap" | "auto";
 }
@@ -135,6 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
 		meaning: true,
 		order: true,
 		enter: false,
+		depth: "all",
 		tags: "tap",
 	},
 	index: { on: false, search: true, sidebar: true, near: "some", auto: true },

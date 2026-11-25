@@ -1,5 +1,18 @@
 # What's new
 
+## 0.9.3 (25 Nov 2026)
+
+**Search deeper with AI reads every clip.**
+
+![Search deeper with AI: only clear fits, best first](https://raw.githubusercontent.com/Virus7976/Obsi-Clips/0.9.3/docs/media/search-deeper-every.png)
+
+- Before, AI saw only 60 clips that this device picked. In a big library, the right clip was often not one of them.
+- Now AI skims every clip, then reads the ones that may fit and scores each one. Only clear fits show, best first.
+- Fewer clips that only share a word with your search.
+- Your own note on a clip helps AI find it.
+- About 35 tokens a clip, so about 25,000 tokens a search for 700 clips. The same search again costs nothing.
+- To use fewer tokens: **Settings → AI → Search deeper reads → Likely clips**.
+
 ## 0.9.2 (25 Nov 2026)
 
 **Search deeper with AI finds much more, and Enter can start it.**

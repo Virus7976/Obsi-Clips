@@ -6,10 +6,41 @@ import { addressProblem } from "./safety";
 import { PHONE_SECRET, PROVIDERS, type AiSettings, type PluginData } from "./settings";
 
 const MAX_MEMO = 400;
-/** Search deeper: how many likely clips AI reads, how much of each, and how many in one ask. */
-const FIND_MAX = 60;
-const FIND_CUT = 180;
-const FIND_BATCH = 30;
+/** Search deeper: at most this many clips, read in two steps (skim, then rank), each with its size of ask and cut. */
+const FIND_MAX = 2000;
+const SKIM_BATCH = 80;
+const SKIM_CUT = 110;
+const RANK_BATCH = 40;
+const RANK_CUT = 300;
+
+/** A clip as search deeper sends it: its words, where it is from, and the person's own note on it. */
+export interface FindClip {
+	id: string;
+	text: string;
+	source: string;
+	note?: string;
+}
+
+/** Cuts a list into even parts of at most n: 90 goes as 45 and 45, not 80 and 10. */
+function evenParts<T>(list: T[], n: number): T[][] {
+	const size = Math.ceil(list.length / Math.ceil(list.length / n));
+	const out: T[][] = [];
+	for (let at = 0; at < list.length; at += size) out.push(list.slice(at, at + size));
+	return out;
+}
+
+/** "1. words (source) [note: …]", one clip a line. */
+function numbered(list: FindClip[], textCut: number, noteCut: number): string {
+	const flat = (t: string) => t.replace(/\s+/g, " ").trim();
+	return list.map((c, i) => `${i + 1}. ${cut(flat(c.text), textCut)} (${cut(c.source, 40)})${c.note?.trim() ? " [note: " + cut(flat(c.note), noteCut) + "]" : ""}`).join("\n");
+}
+
+/** The ids for the numbers AI gave, in its order. Numbers out of range are dropped. */
+function toIds(v: unknown, list: FindClip[]): string[] {
+	if (!Array.isArray(v)) return [];
+	const ns = v.map((n) => (typeof n === "number" ? n : parseInt(String(n), 10))).filter((n) => n >= 1 && n <= list.length);
+	return [...new Set(ns.map((n) => list[n - 1].id))];
+}
 
 /** What one call needs: where it goes and which model. */
 export type AiTarget = Pick<AiSettings, "provider" | "app" | "baseUrl" | "model">;
@@ -245,51 +276,71 @@ export class Ai {
 	}
 
 	/**
-	 * Search deeper: AI reads a list of likely clips and keeps the ones about the same topic, best first.
-	 * Each clip is cut short and sent in asks of 30, so a search costs about 1,500 tokens per 30 clips.
-	 * Remembered, so the same search costs nothing again. Returns null when AI did not answer.
+	 * Search deeper: AI finds the clips about the topic of a search, best first. Two steps:
+	 * 1. Skim: AI reads a short piece of every clip, 80 at a time, and keeps the ones that may fit.
+	 * 2. Rank: AI reads those in full, up to 40 at a time, and orders the ones that fit.
+	 * About 35 tokens a clip. Remembered, so the same search costs nothing again. Returns null when AI did not answer.
 	 */
-	async findClips(query: string, clips: { id: string; text: string; source: string }[]): Promise<string[] | null> {
+	async findClips(query: string, clips: FindClip[]): Promise<string[] | null> {
 		const q = query.replace(/\s+/g, " ").trim().slice(0, 200);
 		if (!q || !this.usable() || !clips.length) return clips.length ? null : [];
 		const list = clips.slice(0, FIND_MAX);
-		const key = hashId("f2|" + q.toLowerCase() + "|" + list.map((c) => c.id).join(","));
+		const key = hashId("f3|" + q.toLowerCase() + "|" + list.map((c) => c.id).join(","));
 		const memo = this.data().memo.picks;
 		if (memo[key]) return memo[key];
 		return this.once("f" + key, async () => {
-			// Even asks: 34 clips go as 17 and 17, not 30 and 4.
-			const n = Math.ceil(list.length / FIND_BATCH);
-			const size = Math.ceil(list.length / n);
-			const asks: Promise<{ best: string[]; also: string[] } | null>[] = [];
-			for (let at = 0; at < list.length; at += size) asks.push(this.pickFrom(q, list.slice(at, at + size)));
-			const got = await Promise.all(asks);
+			let short = list;
+			if (list.length > RANK_BATCH) {
+				const got = await Promise.all(evenParts(list, SKIM_BATCH).map((part) => this.skim(q, part)));
+				if (got.every((g) => !g)) return null;
+				const keep = new Set(got.flatMap((g) => g ?? []));
+				short = list.filter((c) => keep.has(c.id));
+			}
+			if (!short.length) {
+				this.remember(memo, key, []);
+				return [];
+			}
+			const got = await Promise.all(evenParts(short, RANK_BATCH).map((part) => this.rank(q, part)));
 			if (got.every((g) => !g)) return null;
-			// The best from every ask first, then the ones that touch the topic in part.
-			const ids = [...new Set([...got.flatMap((g) => g?.best ?? []), ...got.flatMap((g) => g?.also ?? [])])];
+			// Highest score first, across every ask.
+			const ids = [...new Set(got.flatMap((g) => g ?? []).sort((a, b) => b.s - a.s).map((x) => x.id))];
 			this.remember(memo, key, ids);
 			return ids;
 		});
 	}
 
-	/** One ask of search deeper: the numbered clips that fit best, and the ones that also fit. */
-	private async pickFrom(q: string, list: { id: string; text: string; source: string }[]): Promise<{ best: string[]; also: string[] } | null> {
-		const user = "I am looking for: " + q + "\n\nMy saved quotes:\n" + list.map((c, i) => `${i + 1}. ${cut(c.text.replace(/\s+/g, " "), FIND_CUT)} (${cut(c.source, 40)})`).join("\n");
-		const out = await this.askJson<{ best?: unknown; also?: unknown }>(
-			"A person searches their own saved quotes. Write the topic they mean in a few words. Then pick the numbered quotes " +
-				"that are about that topic, even in other words. A quote that agrees, disagrees, or shows the same idea in a story fits. " +
-				"They may remember it wrong or only in part: match the idea, the context and who said it (the source is in brackets). " +
-				"Most quotes will not fit. A quote fits only when a reader would say it is about the topic, not when it only shares " +
-				'a word or a wider field with it. "best": the quotes that clearly fit, best first. "also": quotes that touch the ' +
-				"topic in part. Either list can be empty. " +
-				'Answer with JSON only: {"topic": "...", "best": [numbers], "also": [numbers]}.',
-			user,
-			160,
+	/** Step 1 of search deeper: the numbered clips that may be about the topic. Generous: step 2 looks closer. */
+	private async skim(q: string, list: FindClip[]): Promise<string[] | null> {
+		const out = await this.askJson<{ ids?: unknown }>(
+			"A person searches their own saved quotes for a topic. Pick every numbered quote that may be about that topic, " +
+				"even in other words, for it or against it, or showing it in a story. Leave out quotes plainly about something " +
+				"else. When unsure, pick it: a second step looks closer. " +
+				'Answer with JSON only: {"ids": [numbers]}.',
+			"I am looking for: " + q + "\n\nMy saved quotes:\n" + numbered(list, SKIM_CUT, 60),
+			240,
 		);
-		if (!out) return null;
-		const ids = (v: unknown) =>
-			Array.isArray(v) ? v.map((n) => (typeof n === "number" ? n : parseInt(String(n), 10))).filter((n) => n >= 1 && n <= list.length).map((n) => list[n - 1].id) : [];
-		if (!Array.isArray(out.best) && !Array.isArray(out.also)) return null;
-		return { best: ids(out.best), also: ids(out.also) };
+		if (!out || !Array.isArray(out.ids)) return null;
+		return toIds(out.ids, list);
+	}
+
+	/**
+	 * Step 2 of search deeper: AI scores each clip from 0 to 5 and the ones at 3 and up are kept.
+	 * A score for every clip makes AI judge each one, which keeps out more of the clips that only share a word.
+	 */
+	private async rank(q: string, list: FindClip[]): Promise<{ id: string; s: number }[] | null> {
+		const out = await this.askJson<{ scores?: unknown }>(
+			"A person searches their own saved quotes. Write the topic they mean in a few words. Then score each numbered quote: " +
+				"5 = exactly what they look for; 4 = clearly about that topic, even in other words; 3 = partly about it; " +
+				"2 = same wider field only; 1 = only shares a word; 0 = about something else. A quote that agrees, disagrees, or shows the topic in a story is about it. They may " +
+				"remember it wrong or only in part: match the idea, the context and who said it (the source is in brackets, and " +
+				"their own note on a quote after it). " +
+				'Answer with JSON only: {"topic": "...", "scores": [one number for each quote, in order]}.',
+			"I am looking for: " + q + "\n\nMy saved quotes:\n" + numbered(list, RANK_CUT, 120),
+			60 + list.length * 3,
+		);
+		if (!out || !Array.isArray(out.scores)) return null;
+		const score = out.scores.map((n) => (typeof n === "number" ? n : parseInt(String(n), 10)));
+		return list.map((c, i) => ({ id: c.id, s: score[i] })).filter((x) => x.s >= 3);
 	}
 
 	/**

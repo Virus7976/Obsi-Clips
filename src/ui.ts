@@ -3,7 +3,7 @@ import { FuzzySuggestModal, Menu, Modal, Notice, Platform, TFile, TFolder, setIc
 import type ClipsPlugin from "./main";
 import { KINDS, type Clip, type Kind, type Place } from "./model";
 import { originalLink } from "./insert";
-import { deepFind } from "./deep";
+import { DEEP_ALL, DEEP_MAX, deepFind } from "./deep";
 import { plural, type Range } from "./text";
 
 export const kindName = (k: Kind) => KINDS.find((x) => x.id === k)?.name.replace(/s$/, "") ?? k;
@@ -82,7 +82,7 @@ export interface CardOptions {
 
 /** Search deeper with AI: see deep.ts. Returns null when AI did not answer. */
 export function aiFind(plugin: ClipsPlugin, query: string, pool: Clip[], skip: Set<string>): Promise<Clip[] | null> {
-	return deepFind(plugin.ai, plugin.meaning, query, pool, skip);
+	return deepFind(plugin.ai, plugin.meaning, query, pool, skip, plugin.settings.ai.depth === "likely" ? DEEP_MAX : DEEP_ALL);
 }
 
 export function clipCard(parent: HTMLElement, plugin: ClipsPlugin, c: Clip, o: CardOptions = {}): HTMLElement {
